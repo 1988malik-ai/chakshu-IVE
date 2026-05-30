@@ -1,0 +1,38 @@
+app:
+  name: AI-IVE
+  version: "1.0.0"
+  trial_days: 14
+
+license:
+  secret_env: AIVE_LICENSE_SECRET
+  check_interval_hours: 24
+
+ffmpeg:
+  # Leave null to auto-detect (imageio-ffmpeg pip bundle, then PATH).
+  ffmpeg_path: null
+  ffprobe_path: null
+
+media:
+  max_simultaneous_videos: 8
+  default_decoder: ffmpeg  # ffmpeg | directshow | vfw | quicktime
+  raw_extensions: [.cr2, .nef, .arw, .dng, .orf, .rw2]
+
+export:
+  prefer_stream_copy: true
+  default_video_codec: libx264
+  gpu_priority: [nvenc, qsv, amf, cpu]
+
+logging:
+  enabled: false
+  path: logs/aive_operations.log
+
+accessibility:
+  high_contrast: false
+  color_blind_mode: none  # none | protanopia | deuteranopia | tritanopia
+
+locale: en
+
+server:
+  api_host: 127.0.0.1
+  api_port: 9450
+  frontend_port: 9451

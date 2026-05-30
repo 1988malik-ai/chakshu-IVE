@@ -1,0 +1,13 @@
+title: Video Timeline Examination
+description: Frame-accurate I/P/B navigation and region analysis
+phase: "2"
+author: Mohit M
+product: Chakshu
+steps:
+  - Ingest MP4/MOV evidence (full path saved on upload)
+  - Open Timeline Pro — Deep Index runs automatically
+  - Scrub timeline or step I-frames
+  - Shift+drag region → Analyze Region
+  - Probe audio channels and measure A/V offset
+requirements:
+  - pip install -r requirements-video.txt

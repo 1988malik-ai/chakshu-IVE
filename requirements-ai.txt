@@ -1,0 +1,4 @@
+# Optional — large download (~100MB+). Only if you use custom ONNX models.
+# pip install -r requirements-ai.txt
+
+onnxruntime==1.19.2; python_version < "3.14"

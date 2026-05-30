@@ -1,0 +1,12 @@
+title: Live Capture Intake
+description: Real-time webcam or screen capture into examination session
+phase: "5"
+author: Mohit M
+product: Chakshu
+steps:
+  - Open Live Capture tab
+  - Start browser webcam or backend device stream
+  - Optional live filter on MJPEG stream (backend)
+  - Snap Frame → ingests into active session
+  - Continue in Markup Studio or Examination Lab
+  - Screen capture (5s) saves MP4 via FFmpeg

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-ive"
+version = "1.0.0"
+description = "AI-IVE: Professional image and video enhancement suite"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "AI-IVE" }]
+dependencies = [
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "cryptography>=42.0",
+    "pysrt>=1.1",
+    "PyYAML>=6.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+opencv = ["opencv-python-headless==4.10.0.84"]
+ui-legacy = ["PyQt6>=6.6"]
+ai = ["onnxruntime>=1.19; python_version < '3.14'"]
+perf = ["uvicorn[standard]>=0.27"]
+video = ["imageio-ffmpeg>=0.5.1"]
+full = ["opencv-python-headless==4.10.0.84", "onnxruntime>=1.19; python_version < '3.14'", "imageio-ffmpeg>=0.5.1"]
+dev = ["pytest>=7.4", "black>=24.0"]
+
+[project.scripts]
+ai-ive = "aive.main:main"
+aive-api = "aive.api._launcher:main_cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]

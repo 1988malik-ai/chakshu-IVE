@@ -1,0 +1,3 @@
+# Video support — cross-platform FFmpeg via Python (no Homebrew / apt required).
+# Install: pip install -r requirements-video.txt
+imageio-ffmpeg>=0.5.1

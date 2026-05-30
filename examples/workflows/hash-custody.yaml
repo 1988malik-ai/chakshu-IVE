@@ -1,0 +1,11 @@
+title: Hash Verification & Chain of Custody
+description: Integrity checks and audit trail
+phase: "1"
+author: Mohit M
+product: Chakshu
+steps:
+  - Ingest evidence — SHA-256 recorded automatically
+  - Forensic Tools → Hash Evidence File (MD5, SHA-1, SHA-256, SHA-512)
+  - Secure Copy + validation report
+  - Chain of Custody tab — review audit entries
+  - Generate case report (HTML/PDF)

@@ -1,0 +1,35 @@
+AI-IVE — EASIEST WAY TO START
+==============================
+
+OPTION A — Double-click (macOS)
+-------------------------------
+1. In Finder, open Desktop → AI-IVE
+2. Double-click: START.command
+3. If macOS blocks it: Right-click → Open → Open
+4. Wait until you see "Starting AI-IVE"
+5. Browser opens or go to: http://localhost:9451
+
+
+OPTION B — Terminal (copy one line at a time)
+---------------------------------------------
+cd ~/Desktop/AI-IVE
+
+chmod +x scripts/setup-and-run.sh
+
+./scripts/setup-and-run.sh
+
+
+Then open in browser: http://localhost:9451
+
+Click "Open Image…" and choose a JPG or PNG.
+
+
+TO STOP
+-------
+Press Ctrl+C in the Terminal window.
+
+
+NO PYTHON 3.12 NEEDED
+----------------------
+Uses your built-in python3. No Homebrew. No OpenCV compile.
+(Video features need extra: pip install opencv-python-headless)

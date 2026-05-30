@@ -1,0 +1,15 @@
+title: Image Enhancement Examination
+description: Non-destructive filter pipeline on still evidence
+phase: "4"
+author: Mohit M
+product: Chakshu
+steps:
+  - Ingest image evidence (JPEG/PNG/TIFF)
+  - Open Examination Lab
+  - Apply utl_clahe (CLAHE) then shp_unsharp
+  - Reset to original to verify non-destructive master
+  - Export PDF frames or secure copy with hash report
+filters:
+  - utl_clahe
+  - shp_unsharp
+  - clr_dehaze

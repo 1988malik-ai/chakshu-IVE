@@ -1,0 +1,351 @@
+/* Forensic Timeline Pro — modern multi-lane studio UI */
+
+.ftl-root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: linear-gradient(155deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 55%, rgba(8, 12, 24, 1) 100%);
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(12px);
+}
+
+/* Timeline page: single column, no horizontal bleed */
+.ftl-page {
+  display: flex !important;
+  flex-direction: column;
+  gap: 16px;
+  overflow-x: hidden;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ftl-loading, .ftl-empty {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--fx-muted);
+  text-align: center;
+}
+
+.ftl-loading-sub {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.ftl-empty h3 {
+  margin: 0;
+  color: var(--fx-text);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ftl-empty p { margin: 0; font-size: 0.82rem; max-width: 400px; line-height: 1.5; }
+
+.ftl-empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(52, 211, 153, 0.12));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: #93c5fd;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+}
+
+.ftl-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(59, 130, 246, 0.15);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: ftl-spin 0.65s linear infinite;
+}
+
+@keyframes ftl-spin { to { transform: rotate(360deg); } }
+
+.ftl-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ftl-tc-block { min-width: 140px; }
+
+.ftl-tc {
+  font-family: var(--fx-mono);
+  font-size: clamp(1rem, 2.5vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+}
+
+.ftl-tc-sub {
+  font-size: 0.65rem;
+  color: var(--fx-muted);
+  font-family: var(--fx-mono);
+  margin-top: 2px;
+}
+
+.ftl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.ftl-chip {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fx-muted);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ftl-chip:hover { transform: translateY(-1px); }
+.ftl-chip.on { color: #fff; }
+.ftl-chip-i.on { background: rgba(52, 211, 153, 0.18); border-color: rgba(52, 211, 153, 0.55); }
+.ftl-chip-p.on { background: rgba(96, 165, 250, 0.18); border-color: rgba(96, 165, 250, 0.55); }
+.ftl-chip-b.on { background: rgba(251, 191, 36, 0.18); border-color: rgba(251, 191, 36, 0.55); }
+.ftl-chip-vfr { border-color: rgba(245, 158, 11, 0.5); color: #fcd34d; cursor: default; }
+.ftl-chip-cache { cursor: default; opacity: 0.85; }
+
+.ftl-quality {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 5px 9px;
+  border-radius: 6px;
+}
+
+.ftl-quality-forensic {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(52, 211, 153, 0.08));
+  color: #6ee7b7;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.12);
+}
+
+.ftl-quality-standard {
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.ftl-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--fx-mono);
+  font-size: 0.72rem;
+  color: var(--fx-muted);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ftl-zoom button {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fx-text);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.ftl-zoom button:hover { background: rgba(59, 130, 246, 0.2); }
+
+.ftl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ftl-minimap {
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+  background: #0f172a;
+  width: 100%;
+  max-width: 100%;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.ftl-canvas-wrap {
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #020617;
+  width: 100%;
+  max-width: 100%;
+  height: 168px;
+  flex-shrink: 0;
+}
+
+.ftl-canvas {
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
+  height: 100% !important;
+}
+
+.ftl-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 12px;
+  font-size: 0.67rem;
+  color: var(--fx-muted);
+  font-family: var(--fx-mono);
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ftl-src {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ftl-hint {
+  opacity: 0.55;
+  font-size: 0.62rem;
+  flex-basis: 100%;
+}
+
+@media (max-width: 720px) {
+  .ftl-hint { display: none; }
+  .ftl-zoom span { min-width: 2.5em; text-align: center; }
+}
+
+.ftl-region { color: #93c5fd; font-weight: 600; }
+
+/* Timeline studio layout */
+.ftl-studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .ftl-studio { grid-template-columns: 1fr; }
+}
+
+.ftl-viewer {
+  background: radial-gradient(ellipse at center, #111 0%, #000 70%);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  aspect-ratio: 16/9;
+  max-height: 360px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ftl-viewer video,
+.ftl-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.ftl-side-card {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.65) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ftl-transport {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ftl-transport .fx-btn-primary { grid-column: span 2; }
+
+.ftl-frame-meta {
+  font-family: var(--fx-mono);
+  font-size: 0.72rem;
+  line-height: 1.75;
+  color: var(--fx-muted);
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ftl-frame-meta strong {
+  color: #e2e8f0;
+  display: inline-block;
+  min-width: 72px;
+}
+
+.ftl-section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fx-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.ftl-audio-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ftl-audio-row .fx-btn { flex: 1; font-size: 0.68rem; }
