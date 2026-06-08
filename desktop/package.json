@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "main": "main.js",
-  "description": "Chakshu Forensics — Windows desktop shell",
+  "description": "Chakshu Forensics - Windows desktop shell",
+  "author": "Chakshu",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --x64"
@@ -15,6 +16,7 @@
   "build": {
     "appId": "com.chakshu.forensics",
     "productName": "Chakshu Forensics",
+    "publish": null,
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -35,7 +37,7 @@
         { "target": "portable", "arch": ["x64"] },
         { "target": "nsis", "arch": ["x64"] }
       ],
-      "icon": "../frontend/public/favicon.svg",
+      "icon": "build/icon.png",
       "artifactName": "Chakshu-Setup-${version}.exe"
     },
     "portable": {

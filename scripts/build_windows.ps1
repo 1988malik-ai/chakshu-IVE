@@ -60,6 +60,7 @@ if ($ApiOnly) {
 }
 
 Write-Host "=== 3. Electron installer (NSIS) ==="
+& $py "$Root\scripts\generate_desktop_icon.py"
 Set-Location "$Root\desktop"
 if (-not (Test-Path node_modules)) { npm install }
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"

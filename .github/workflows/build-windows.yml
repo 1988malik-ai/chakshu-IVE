@@ -60,6 +60,9 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_portable.ps1 -SkipBuild
 
+      - name: Generate Windows app icon
+        run: python scripts/generate_desktop_icon.py
+
       - name: Electron native app + installer
         working-directory: desktop
         env:
