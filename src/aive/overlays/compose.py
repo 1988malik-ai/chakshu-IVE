@@ -62,6 +62,49 @@ def draw_pip(background: np.ndarray, inset: np.ndarray, scale: float = 0.25) -> 
     return out
 
 
+def draw_subtitle_cue(
+    frame: np.ndarray,
+    text: str,
+    *,
+    position: str = "bottom-center",
+    font_scale: float | None = None,
+    margin_v: int = 28,
+) -> np.ndarray:
+    """Render subtitle text on a video frame (R-120 preview / examination overlay)."""
+    if not HAS_CV2 or not text:
+        return frame
+    out = frame.copy()
+    h, w = out.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = font_scale if font_scale is not None else max(0.45, w / 1600)
+    thickness = max(1, int(scale * 2))
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+    if not lines:
+        return out
+    max_tw = 0
+    th = 0
+    for ln in lines:
+        (tw, th_line), _ = cv2.getTextSize(ln, font, scale, thickness)
+        max_tw = max(max_tw, tw)
+        th = max(th, th_line)
+    line_h = int(th * 1.35)
+    block_h = line_h * len(lines) + 8
+    y_base = h - margin_v if "bottom" in position else margin_v + block_h
+    x_center = w // 2
+    x0 = max(4, x_center - max_tw // 2 - 8)
+    y0 = max(4, y_base - block_h)
+    x1 = min(w - 4, x_center + max_tw // 2 + 8)
+    y1 = min(h - 4, y_base + 4)
+    cv2.rectangle(out, (x0, y0), (x1, y1), (0, 0, 0), -1)
+    cv2.rectangle(out, (x0, y0), (x1, y1), (200, 200, 200), 1)
+    for i, ln in enumerate(lines):
+        (tw, th), _ = cv2.getTextSize(ln, font, scale, thickness)
+        x = x_center - tw // 2
+        y = y0 + 8 + th + i * line_h
+        cv2.putText(out, ln, (x, y), font, scale, (255, 255, 255), thickness)
+    return out
+
+
 def side_by_side(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     if not HAS_CV2:
         return left

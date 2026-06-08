@@ -1,0 +1,42 @@
+.fx-audio-redact-panel {
+  grid-column: 1 / -1;
+}
+
+.fx-audio-redact-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.fx-audio-redact-list li {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr 32px;
+  gap: 8px;
+  align-items: end;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-audio-redact-list label {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+}
+
+.fx-audio-redact-idx {
+  font-family: var(--fx-mono);
+  font-size: 0.72rem;
+  color: var(--fx-warn);
+  padding-bottom: 8px;
+}
+
+@media (max-width: 700px) {
+  .fx-audio-redact-list li {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fx-audio-redact-idx {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+  }
+}

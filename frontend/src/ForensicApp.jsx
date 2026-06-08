@@ -4,27 +4,51 @@ import AudioPlayer from './components/AudioPlayer';
 import ForensicTimeline, { formatTc } from './components/ForensicTimeline';
 import ExamCanvas from './components/ExamCanvas';
 import LiveCapture from './components/LiveCapture';
-import { PRODUCT_FULL, PRODUCT_TAGLINE } from './brand';
+import LocaleSettings from './components/LocaleSettings';
+import ExamCompareDock from './components/ExamCompareDock';
+import ProjectNotesPanel from './components/ProjectNotesPanel';
+import LegalExportPanel from './components/LegalExportPanel';
+import ForensicVideoTransport from './components/ForensicVideoTransport';
+import AudioRedactionPanel from './components/AudioRedactionPanel';
+import AudioStreamPanel from './components/AudioStreamPanel';
+import SubtitlePanel from './components/SubtitlePanel';
+import BookmarksPanel from './components/BookmarksPanel';
+import CaseReportsPanel from './components/CaseReportsPanel';
+import SidebarFooter from './components/SidebarFooter';
+import { useForensicPlayback } from './hooks/useForensicPlayback';
+import CompareFrameView from './components/CompareFrameView';
+import { useLocale } from './i18n/LocaleContext';
+import { PRODUCT_FULL } from './brand';
+import {
+  derivePathsFromOutputDir,
+  loadExportFormFromStorage,
+  mergeExportSettings,
+  outputDirForCase,
+  saveExportFormToStorage,
+} from './lib/exportPaths';
 
-const NAV = [
-  { id: 'command', label: 'Command Center' },
-  { id: 'examine', label: 'Examination Lab' },
-  { id: 'capture', label: 'Live Capture' },
-  { id: 'markup', label: 'Markup Studio' },
-  { id: 'timeline', label: 'Timeline Pro' },
-  { id: 'tools', label: 'Forensic Tools' },
-  { id: 'custody', label: 'Chain of Custody' },
-  { id: 'export', label: 'Legal Export' },
-  { id: 'reports', label: 'Case Reports' },
+const NAV_KEYS = [
+  { id: 'command', key: 'nav.command' },
+  { id: 'examine', key: 'nav.examine' },
+  { id: 'capture', key: 'nav.capture' },
+  { id: 'markup', key: 'nav.markup' },
+  { id: 'timeline', key: 'nav.timeline' },
+  { id: 'tools', key: 'nav.tools' },
+  { id: 'custody', key: 'nav.custody' },
+  { id: 'export', key: 'nav.export' },
+  { id: 'reports', key: 'nav.reports' },
+  { id: 'settings', key: 'nav.settings' },
 ];
 
 export default function ForensicApp() {
+  const { t, locale } = useLocale();
   const [page, setPage] = useState('examine');
   const [sessionId, setSessionId] = useState(null);
   const [filters, setFilters] = useState([]);
   const [filterSearch, setFilterSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [previewOriginal, setPreviewOriginal] = useState(null);
   const [filterChain, setFilterChain] = useState([]);
   const [forensicCase, setForensicCase] = useState(null);
   const [custody, setCustody] = useState([]);
@@ -34,10 +58,15 @@ export default function ForensicApp() {
   const [allHashes, setAllHashes] = useState(null);
   const [videoInfo, setVideoInfo] = useState(null);
   const [notes, setNotes] = useState([]);
-  const [noteText, setNoteText] = useState('');
+  const [projectMeta, setProjectMeta] = useState({ project_id: null, name: 'Examination' });
+  const [notesCollapsed, setNotesCollapsed] = useState(
+    () => localStorage.getItem('chakshu.notesCollapsed') === '1',
+  );
   const [compareId, setCompareId] = useState(null);
-  const [status, setStatus] = useState('Initializing forensic services…');
+  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [toasts, setToasts] = useState([]);
+  const [blockingOverlay, setBlockingOverlay] = useState(null);
   const [mediaPath, setMediaPath] = useState('');
   const [storagePath, setStoragePath] = useState('');
   const [mediaType, setMediaType] = useState('image');
@@ -54,35 +83,106 @@ export default function ForensicApp() {
   const [calibration, setCalibration] = useState({ pixelsPerUnit: 1, unitName: 'px', deltaTime: null });
   const [examples, setExamples] = useState([]);
   const [selectedExample, setSelectedExample] = useState(null);
+  const [syncResult, setSyncResult] = useState(null);
+  const [subtitleForm, setSubtitleForm] = useState({
+    subtitle_path: '',
+    output_path: '~/Desktop/chakshu-subtitled.mp4',
+    font_size: 22,
+    margin_v: 28,
+  });
+  const [aiStatus, setAiStatus] = useState(null);
+  const [aiTools, setAiTools] = useState([]);
+  const [aiModels, setAiModels] = useState([]);
+  const [aiTool, setAiTool] = useState('auto_enhance');
+  const [aiModelId, setAiModelId] = useState('');
+  const [aiStrength, setAiStrength] = useState(1.0);
+  const [labFlash, setLabFlash] = useState('');
+  const [autoOpenLab, setAutoOpenLab] = useState(
+    () => localStorage.getItem('chakshu.autoOpenLab') !== '0',
+  );
+  const [showOriginalPreview, setShowOriginalPreview] = useState(
+    () => localStorage.getItem('chakshu.showOriginalPreview') === '1',
+  );
+  const aiModelFileRef = useRef(null);
   const fileRef = useRef(null);
   const videoRef = useRef(null);
+  const seekTimeRef = useRef(0);
 
-  const [exportForm, setExportForm] = useState({
-    input_path: '',
-    output_dir: '~/Desktop/chakshu-export',
-    pdf_path: '~/Desktop/chakshu-frames.pdf',
-    i_frames_dir: '~/Desktop/chakshu-i-frames',
-    audio_out: '~/Desktop/audio.aac',
-  });
+  const [exportForm, setExportForm] = useState(loadExportFormFromStorage);
+
+  const notify = useCallback((message, type = 'success') => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3500);
+  }, []);
+
+  const setBlocking = useCallback((active, opts = {}) => {
+    if (!active) {
+      setBlockingOverlay(null);
+      return;
+    }
+    setBlockingOverlay({
+      message: opts.message || t('subtitle.burning', 'Processing…'),
+      detail: opts.detail || '',
+    });
+  }, [t]);
+
+  const refreshProjectNotes = useCallback(async () => {
+    try {
+      const r = await api.projectNotes();
+      setNotes(r.notes || []);
+      setProjectMeta({ project_id: r.project_id, name: r.project_name || 'Examination' });
+    } catch {
+      /* API may be offline */
+    }
+  }, []);
 
   const init = useCallback(async () => {
     try {
       const { session_id } = await api.createSession();
       setSessionId(session_id);
-      const [flt, fc] = await Promise.all([
+      const [flt, fc, proj] = await Promise.all([
         api.fetchFilters(),
         api.forensicsActiveCase(),
+        api.projectCurrent(),
       ]);
       setFilters(flt.filters || []);
       setForensicCase(fc);
-      setStatus(`Case ${fc.case_number} · ${flt.implemented_count || 0} forensic filters ready`);
+      if (proj?.export_settings) {
+        setExportForm((f) => mergeExportSettings(f, proj.export_settings));
+      }
+      await refreshProjectNotes();
+      setStatus(`${fc.display_id || fc.case_number} · ${flt.implemented_count || 0} forensic filters ready`);
     } catch (e) {
       setError(e.message);
-      setStatus('API offline — start: python -m aive.api.server');
+      setStatus(t('status.api_offline', 'API offline — start: python -m aive.api.server'));
     }
-  }, []);
+  }, [t, refreshProjectNotes]);
 
   useEffect(() => { init(); }, [init]);
+
+  useEffect(() => {
+    saveExportFormToStorage(exportForm);
+  }, [exportForm]);
+
+  useEffect(() => {
+    if (!labFlash) return undefined;
+    const t = setTimeout(() => setLabFlash(''), 5000);
+    return () => clearTimeout(t);
+  }, [labFlash]);
+
+  useEffect(() => {
+    if (page !== 'examine' || !sessionId) return;
+    api.forensicsPreview(sessionId)
+      .then(handlePreview)
+      .catch(() => {});
+  }, [page, sessionId]);
+
+  useEffect(() => {
+    if (!status) setStatus(t('status.init', 'Initializing forensic services…'));
+  }, [t, status]);
 
   const forensicFilters = useMemo(() => {
     const q = filterSearch.toLowerCase();
@@ -99,8 +199,47 @@ export default function ForensicApp() {
 
   const handlePreview = (data) => {
     if (data.preview) setPreview(previewDataUrl(data.preview));
+    if (data.preview_original) {
+      setPreviewOriginal(previewDataUrl(data.preview_original));
+    } else if (data.preview && !data.filter_chain?.length) {
+      setPreviewOriginal(previewDataUrl(data.preview));
+    }
     if (data.filter_chain) setFilterChain(data.filter_chain);
   };
+
+  const applyToSession = useCallback((data, message, options = {}) => {
+    const shouldOpen = options.openLab !== undefined ? options.openLab : autoOpenLab;
+    if (data?.preview) handlePreview(data);
+    if (data?.filter_chain) setFilterChain(data.filter_chain);
+    if (message) {
+      setLabFlash(message);
+      setStatus(message);
+    }
+    if (shouldOpen && page !== 'examine') {
+      setPage('examine');
+    }
+  }, [autoOpenLab, page]);
+
+  const syncCapPreviewToSession = useCallback(async (capResult, timeSec, message) => {
+    const path = exportForm.input_path || storagePath;
+    const samePath = sessionId && storagePath && path
+      && (storagePath === path || storagePath.endsWith(path) || path.endsWith(storagePath));
+    if (samePath && sessionId != null && timeSec != null) {
+      try {
+        const r = await api.seekVideo(sessionId, timeSec);
+        applyToSession(r, message);
+        setSeekTime(timeSec);
+        return;
+      } catch (e) {
+        setError(e.message);
+      }
+    }
+    applyToSession(capResult, message || 'Preview updated — open Examination Lab to sync pipeline', {
+      openLab: autoOpenLab,
+    });
+  }, [sessionId, storagePath, exportForm.input_path, autoOpenLab, applyToSession]);
+
+  const showWorkflowBar = !['examine', 'capture', 'settings'].includes(page);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -157,8 +296,7 @@ export default function ForensicApp() {
     if (!selectedFilter || !sessionId) return setError('Select filter and load evidence');
     try {
       const data = await api.forensicsApplyFilter(sessionId, selectedFilter.id);
-      handlePreview(data);
-      setStatus(`Applied: ${selectedFilter.name}`);
+      applyToSession(data, `Applied: ${selectedFilter.name}`, { openLab: false });
     } catch (e) {
       setError(e.message);
     }
@@ -185,6 +323,7 @@ export default function ForensicApp() {
 
   const seekToFrame = async (f) => {
     if (!sessionId || !storagePath) return;
+    playback.pause();
     try {
       const r = await api.seekVideo(sessionId, f.pts);
       handlePreview(r);
@@ -211,6 +350,27 @@ export default function ForensicApp() {
     } catch (e) { setError(e.message); }
   };
 
+  const playbackFps = timeline?.fps || videoMeta?.fps || videoInfo?.fps || 30;
+  const videoPlaybackEnabled = mediaType === 'video' && Boolean(sessionId && storagePath);
+
+  seekTimeRef.current = seekTime;
+
+  const playback = useForensicPlayback({
+    enabled: videoPlaybackEnabled,
+    videoRef,
+    fps: playbackFps,
+    stepFrame,
+    getCurrentTime: () => seekTimeRef.current,
+  });
+
+  const handlePlayReverse = useCallback(() => {
+    if (seekTimeRef.current <= 0.001) {
+      setStatus(t('playback.reverse_at_start', 'Seek forward before reverse playback'));
+      return;
+    }
+    playback.playReverse();
+  }, [playback, t]);
+
   const buildTimeline = async (forceRefresh = false) => {
     if (!storagePath) return setError('Load video first');
     setTimelineLoading(true);
@@ -225,20 +385,28 @@ export default function ForensicApp() {
     finally { setTimelineLoading(false); }
   };
 
-  const seekToTime = async (t) => {
+  const seekToTime = async (t, frameIdxHint = null) => {
+    playback.pause();
     setSeekTime(t);
     if (videoRef.current) videoRef.current.currentTime = t;
     const near = timeline?.frames?.reduce((best, f) => (
       !best || Math.abs(f.pts - t) < Math.abs(best.pts - t) ? f : best
     ), null);
     if (near) setCurrentFrameMeta(near);
+    if (frameIdxHint != null) setFrameIndex(frameIdxHint);
     if (!sessionId) return;
     try {
       const r = await api.seekVideo(sessionId, t);
       handlePreview(r);
-      setFrameIndex(r.frame_index ?? near?.index ?? 0);
+      setFrameIndex(r.frame_index ?? frameIdxHint ?? near?.index ?? 0);
     } catch { /* scrub only */ }
   };
+
+  const handleBookmarkApplyFilter = useCallback(async (filterId, params = {}) => {
+    if (!sessionId) throw new Error(t('bookmark.need_session', 'Open Examination Lab with loaded evidence to jump'));
+    const data = await api.forensicsApplyFilter(sessionId, filterId, params);
+    applyToSession(data, `${t('bookmark.jumped', 'Jumped to bookmark')}: ${filterLabel(filterId)}`, { openLab: false });
+  }, [sessionId, applyToSession, filterLabel, t]);
 
   const loadCustody = async () => {
     if (!forensicCase?.case_id) return;
@@ -251,6 +419,15 @@ export default function ForensicApp() {
       api.capExamples().then((r) => setExamples(r.examples || [])).catch(() => {});
     }
     if (page === 'custody') loadCustody();
+    if (page === 'tools') {
+      Promise.all([api.aiStatus(), api.aiTools(), api.aiModels()])
+        .then(([st, tools, models]) => {
+          setAiStatus(st);
+          setAiTools(tools.tools || []);
+          setAiModels(models.models || []);
+        })
+        .catch(() => {});
+    }
   }, [page, forensicCase?.case_id]);
 
   const handleLiveIngest = (data) => {
@@ -261,9 +438,11 @@ export default function ForensicApp() {
   };
 
   const markupMediaId = useMemo(
-    () => evidenceId || storagePath || sessionId || 'default',
-    [evidenceId, storagePath, sessionId],
+    () => storagePath || evidenceId || sessionId || 'default',
+    [storagePath, evidenceId, sessionId],
   );
+
+  const caseLabel = forensicCase?.display_id || forensicCase?.case_number || forensicCase?.case_id || '—';
 
   const mediaIdLabel = () => {
     const id = storagePath || mediaPath || '—';
@@ -271,41 +450,76 @@ export default function ForensicApp() {
   };
 
   return (
-    <div className="fx-app">
+    <div className={`fx-app${blockingOverlay ? ' fx-app-blocked' : ''}`}>
       <aside className="fx-sidebar">
         <div className="fx-brand">
           <h1>{PRODUCT_FULL}</h1>
-          <p>{PRODUCT_TAGLINE}</p>
+          <p>{t('app.tagline', 'Digital Media Examination Platform')}</p>
         </div>
         <nav className="fx-nav">
-          {NAV.map((n) => (
+          {NAV_KEYS.map((n) => (
             <button
               key={n.id}
               type="button"
               className={`fx-nav-btn ${page === n.id ? 'active' : ''}`}
               onClick={() => setPage(n.id)}
             >
-              {n.label}
+              {t(n.key, n.id)}
             </button>
           ))}
         </nav>
-        <div style={{ padding: 12, fontSize: '0.7rem', color: 'var(--fx-muted)' }}>
-          <div className="case-id">{forensicCase?.case_number || '—'}</div>
-          <div>{forensicCase?.examiner || 'Examiner'}</div>
-        </div>
+        <SidebarFooter
+          caseLabel={caseLabel}
+          caseId={forensicCase?.case_id}
+          examiner={forensicCase?.examiner}
+          onOpenSettings={() => setPage('settings')}
+        />
       </aside>
 
+      <div className="fx-workspace">
+      <div className="fx-main-column">
       <div className="fx-main">
         <header className="fx-topbar">
           <div>
             <strong>{forensicCase?.title || 'Examination'}</strong>
-            <span className="case-id" style={{ marginLeft: 12 }}>{forensicCase?.case_id?.slice(0, 8)}</span>
+            <span className="case-id" style={{ marginLeft: 12 }} title={forensicCase?.case_id}>{caseLabel}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="fx-btn" onClick={() => fileRef.current?.click()}>Ingest Evidence</button>
-            <button type="button" className="fx-btn fx-btn-primary" onClick={() => setPage('examine')}>Examination Lab</button>
+            <button type="button" className="fx-btn" onClick={() => fileRef.current?.click()}>{t('action.ingest', 'Ingest Evidence')}</button>
+            <button type="button" className="fx-btn fx-btn-primary" onClick={() => setPage('examine')}>{t('action.examination_lab', 'Examination Lab')}</button>
           </div>
         </header>
+
+        <ExamCompareDock
+          visible={showWorkflowBar}
+          originalSrc={previewOriginal || preview}
+          enhancedSrc={preview}
+          filterChain={filterChain}
+          filterLabel={filterLabel}
+          lastAction={labFlash}
+          pathLabel={mediaIdLabel()}
+          hasPreview={Boolean(preview)}
+          mediaType={mediaType}
+          showOriginal={showOriginalPreview}
+          onShowOriginalChange={(v) => {
+            setShowOriginalPreview(v);
+            localStorage.setItem('chakshu.showOriginalPreview', v ? '1' : '0');
+          }}
+          t={t}
+          autoOpenLab={autoOpenLab}
+          onAutoOpenLabChange={(v) => {
+            setAutoOpenLab(v);
+            localStorage.setItem('chakshu.autoOpenLab', v ? '1' : '0');
+          }}
+          onOpenLab={() => setPage('examine')}
+          onIngest={() => fileRef.current?.click()}
+        />
+
+        {page === 'settings' && (
+          <div className="fx-content">
+            <LocaleSettings />
+          </div>
+        )}
 
         {page === 'command' && (
           <div className="fx-content">
@@ -366,7 +580,7 @@ export default function ForensicApp() {
         )}
 
         {page === 'examine' && (
-          <div className="fx-content fx-grid-3">
+          <div className="fx-content fx-grid-examine">
             <div className="fx-panel">
               <div className="fx-panel-head">Enhancement Pipeline</div>
               <div className="fx-panel-body">
@@ -417,9 +631,19 @@ export default function ForensicApp() {
                 Frame Examination (Non-destructive)
                 {mediaType === 'video' && <span className="fx-badge fx-badge-live" style={{ marginLeft: 8 }}>VIDEO</span>}
               </div>
-              <div className="fx-preview">
-                {preview ? <img src={preview} alt="Evidence frame" /> : <span style={{ color: '#555' }}>Ingest evidence to begin examination</span>}
-              </div>
+              <CompareFrameView
+                originalSrc={previewOriginal || preview}
+                enhancedSrc={preview}
+                flash={Boolean(labFlash)}
+                variant="lab"
+                compareEnabled={mediaType === 'image'}
+                showOriginal={showOriginalPreview}
+                onShowOriginalChange={mediaType === 'image' ? (v) => {
+                  setShowOriginalPreview(v);
+                  localStorage.setItem('chakshu.showOriginalPreview', v ? '1' : '0');
+                } : undefined}
+                t={t}
+              />
               {mediaType === 'video' && storagePath && (
                 <div className="fx-panel-body" style={{ borderTop: '1px solid var(--fx-border)' }}>
                   <video
@@ -427,7 +651,26 @@ export default function ForensicApp() {
                     src={api.mediaServeUrl(storagePath)}
                     controls
                     style={{ width: '100%', maxHeight: 180, background: '#000' }}
-                    onTimeUpdate={(e) => setSeekTime(e.target.currentTime)}
+                    onTimeUpdate={(e) => {
+                      if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
+                    }}
+                    onPlay={() => {
+                      if (playback.direction === 'reverse') videoRef.current?.pause();
+                    }}
+                  />
+                  <ForensicVideoTransport
+                    t={t}
+                    direction={playback.direction}
+                    speed={playback.speed}
+                    onSpeedChange={playback.setSpeed}
+                    onPlayForward={playback.playForward}
+                    onPlayReverse={handlePlayReverse}
+                    onPause={playback.pause}
+                    onStepBack={() => { playback.pause(); stepFrame(-1); }}
+                    onStepForward={() => { playback.pause(); stepFrame(1); }}
+                    onStepIframe={() => { playback.pause(); stepFrame(1, true); }}
+                    disabled={!sessionId}
+                    compact
                   />
                   <div style={{ marginTop: 8 }}>
                     <label style={{ fontSize: '0.7rem', color: 'var(--fx-muted)' }}>
@@ -441,13 +684,17 @@ export default function ForensicApp() {
                       step={0.05}
                       value={seekTime}
                       style={{ width: '100%' }}
-                      onChange={(e) => setSeekTime(Number(e.target.value))}
+                      onChange={(e) => {
+                        playback.pause();
+                        setSeekTime(Number(e.target.value));
+                      }}
                     />
                     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <button
                         type="button"
                         className="fx-btn fx-btn-primary"
                         onClick={async () => {
+                          playback.pause();
                           try {
                             const r = await api.seekVideo(sessionId, seekTime);
                             handlePreview(r);
@@ -543,6 +790,22 @@ export default function ForensicApp() {
                 )}
               </div>
             </div>
+
+            <BookmarksPanel
+              t={t}
+              mediaPath={exportForm.input_path || storagePath}
+              sessionId={sessionId}
+              frameIndex={frameIndex}
+              timeSec={seekTime}
+              selectedFilter={selectedFilter}
+              filterChain={filterChain}
+              filterLabel={filterLabel}
+              onSeek={seekToTime}
+              onApplyFilter={handleBookmarkApplyFilter}
+              setStatus={setStatus}
+              setError={setError}
+              notify={notify}
+            />
           </div>
         )}
 
@@ -630,7 +893,12 @@ export default function ForensicApp() {
                       src={api.mediaServeUrl(storagePath)}
                       controls
                       style={{ width: '100%', height: '100%' }}
-                      onTimeUpdate={(e) => setSeekTime(e.target.currentTime)}
+                      onTimeUpdate={(e) => {
+                        if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
+                      }}
+                      onPlay={() => {
+                        if (playback.direction === 'reverse') videoRef.current?.pause();
+                      }}
                     />
                   ) : (
                     <span style={{ color: '#555' }}>Load video evidence</span>
@@ -643,10 +911,20 @@ export default function ForensicApp() {
                     Deep Index
                   </button>
                   <button type="button" className="fx-btn" onClick={() => buildTimeline(true)} disabled={!storagePath || timelineLoading} title="Rebuild index">↻</button>
-                  <button type="button" className="fx-btn" onClick={() => stepFrame(-1)} disabled={!sessionId}>◀</button>
-                  <button type="button" className="fx-btn" onClick={() => stepFrame(1)} disabled={!sessionId}>▶</button>
-                  <button type="button" className="fx-btn" onClick={() => stepFrame(1, true)} disabled={!sessionId}>I</button>
                 </div>
+                <ForensicVideoTransport
+                  t={t}
+                  direction={playback.direction}
+                  speed={playback.speed}
+                  onSpeedChange={playback.setSpeed}
+                  onPlayForward={playback.playForward}
+                  onPlayReverse={handlePlayReverse}
+                  onPause={playback.pause}
+                  onStepBack={() => { playback.pause(); stepFrame(-1); }}
+                  onStepForward={() => { playback.pause(); stepFrame(1); }}
+                  onStepIframe={() => { playback.pause(); stepFrame(1, true); }}
+                  disabled={!sessionId}
+                />
                 <div className="ftl-frame-meta">
                   <div><strong>Timecode</strong> {formatTc(seekTime, timeline?.fps || 30)}</div>
                   <div><strong>Frame</strong> #{frameIndex}{currentFrameMeta ? ` · ${currentFrameMeta.type}` : ''}</div>
@@ -695,6 +973,28 @@ export default function ForensicApp() {
                   ))}
                   <AudioPlayer src={storagePath ? api.mediaServeUrl(storagePath) : null} label="Synced audio" />
                 </div>
+                {mediaType === 'video' && storagePath && (
+                  <>
+                    <AudioRedactionPanel
+                      t={t}
+                      inputPath={exportForm.input_path || storagePath}
+                      outputDir={exportForm.output_dir}
+                      playheadSec={seekTime}
+                      selectionStart={regionStart}
+                      selectionEnd={regionEnd}
+                      setStatus={setStatus}
+                      setError={setError}
+                    />
+                    <AudioStreamPanel
+                      t={t}
+                      videoPath={exportForm.input_path || storagePath}
+                      outputDir={exportForm.output_dir}
+                      setStatus={setStatus}
+                      setError={setError}
+                      notify={notify}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -702,6 +1002,110 @@ export default function ForensicApp() {
 
         {page === 'tools' && (
           <div className="fx-content" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <AudioRedactionPanel
+              t={t}
+              inputPath={exportForm.input_path}
+              outputDir={exportForm.output_dir}
+              playheadSec={seekTime}
+              selectionStart={regionStart}
+              selectionEnd={regionEnd}
+              setStatus={setStatus}
+              setError={setError}
+            />
+            <AudioStreamPanel
+              t={t}
+              videoPath={exportForm.input_path || storagePath}
+              outputDir={exportForm.output_dir}
+              setStatus={setStatus}
+              setError={setError}
+              notify={notify}
+            />
+            <div className="fx-panel" style={{ gridColumn: '1 / -1' }}>
+              <div className="fx-panel-head">AI / ML Enhancement (R-090, R-091)</div>
+              <div className="fx-panel-body">
+                <p style={{ fontSize: '0.75rem', color: 'var(--fx-muted)', marginTop: 0 }}>
+                  Built-in AI-style tools work without ONNX. Changes update the live preview bar above and sync to
+                  <strong> Examination Lab</strong> (enable “Open Examination Lab after apply” or click the button).
+                  {aiStatus && (
+                    <span>
+                      {' '}ONNX runtime: {aiStatus.onnxruntime_available ? `yes (${aiStatus.onnxruntime_version})` : 'not installed — pip install onnxruntime'}
+                    </span>
+                  )}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px auto', gap: 8, alignItems: 'end', marginTop: 10 }}>
+                  <div>
+                    <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Tool</label>
+                    <select className="fx-input" value={aiTool} onChange={(e) => {
+                      setAiTool(e.target.value);
+                      if (e.target.value !== 'custom_onnx') setAiModelId('');
+                    }}>
+                      {aiTools.filter((t) => !t.id?.startsWith('model:')).map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Custom model (optional)</label>
+                    <select className="fx-input" value={aiModelId} onChange={(e) => {
+                      setAiModelId(e.target.value);
+                      if (e.target.value) setAiTool('custom_onnx');
+                    }}>
+                      <option value="">— built-in only —</option>
+                      {aiModels.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.task})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Strength {aiStrength.toFixed(1)}</label>
+                    <input type="range" min={0.1} max={3} step={0.1} value={aiStrength} onChange={(e) => setAiStrength(Number(e.target.value))} style={{ width: '100%' }} />
+                  </div>
+                  <button type="button" className="fx-btn fx-btn-primary" disabled={!sessionId} onClick={async () => {
+                    try {
+                      const r = await api.aiEnhanceSession({
+                        session_id: sessionId,
+                        tool: aiModelId ? 'custom_onnx' : aiTool,
+                        model_id: aiModelId,
+                        strength: aiStrength,
+                      });
+                      applyToSession(r, `AI applied: ${aiModelId || aiTool}`);
+                    } catch (e) { setError(e.message); }
+                  }}>Apply to Frame</button>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button type="button" className="fx-btn" onClick={() => aiModelFileRef.current?.click()}>Import ONNX Model</button>
+                  <button type="button" className="fx-btn" onClick={async () => {
+                    const p = prompt('Full path to .onnx on this machine:', '');
+                    if (!p) return;
+                    try {
+                      await api.aiImportModelPath({ path: p });
+                      const models = await api.aiModels();
+                      setAiModels(models.models || []);
+                      setStatus('Model imported');
+                    } catch (e) { setError(e.message); }
+                  }}>Import from Path</button>
+                  {aiModelId && (
+                    <button type="button" className="fx-btn" onClick={async () => {
+                      if (!confirm(`Remove model ${aiModelId}?`)) return;
+                      try {
+                        await api.aiDeleteModel(aiModelId);
+                        setAiModelId('');
+                        const models = await api.aiModels();
+                        setAiModels(models.models || []);
+                        setStatus('Model removed');
+                      } catch (e) { setError(e.message); }
+                    }}>Delete Selected Model</button>
+                  )}
+                </div>
+                {aiModels.length > 0 && (
+                  <ul style={{ marginTop: 10, fontSize: '0.7rem', color: 'var(--fx-muted)' }}>
+                    {aiModels.map((m) => (
+                      <li key={m.id}><strong>{m.name}</strong> — {m.task} · {m.id}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
             <div className="fx-panel">
               <div className="fx-panel-head">Multi-Algorithm Hash Verification</div>
               <div className="fx-panel-body">
@@ -746,42 +1150,26 @@ export default function ForensicApp() {
                   <button type="button" className="fx-btn fx-btn-primary" onClick={async () => {
                     try {
                       const r = await api.capSeekTime(exportForm.input_path, seekTime);
-                      if (r.preview) setPreview(previewDataUrl(r.preview));
-                      setStatus(`Frame at ${seekTime}s`);
+                      await syncCapPreviewToSession(r, seekTime, `Frame at ${seekTime.toFixed(2)}s`);
                     } catch (e) { setError(e.message); }
                   }}>Seek Time</button>
                   <button type="button" className="fx-btn" onClick={async () => {
                     try {
                       const r = await api.capSeekIframe(exportForm.input_path, seekTime);
-                      if (r.preview) setPreview(previewDataUrl(r.preview));
-                      setStatus(`I-frame near ${seekTime}s (pts ${r.iframe_pts})`);
+                      await syncCapPreviewToSession(r, seekTime, `I-frame near ${seekTime.toFixed(2)}s`);
                     } catch (e) { setError(e.message); }
                   }}>Nearest I-Frame</button>
                 </div>
                 <button type="button" className="fx-btn" style={{ marginTop: 8 }} onClick={async () => {
                   try {
                     const r = await api.capMpegViz(exportForm.input_path, seekTime, 'macroblock');
-                    if (r.preview) setPreview(previewDataUrl(r.preview));
-                    setStatus('Macroblock overlay');
+                    if (sessionId) {
+                      applyToSession(r, 'Macroblock overlay preview');
+                    } else {
+                      applyToSession(r, 'Macroblock overlay — ingest in Examination Lab to edit', { openLab: true });
+                    }
                   } catch (e) { setError(e.message); }
                 }}>MPEG Macroblock Overlay</button>
-              </div>
-            </div>
-            <div className="fx-panel">
-              <div className="fx-panel-head">Examination Notes</div>
-              <div className="fx-panel-body">
-                <textarea className="fx-input" rows={3} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Observation…" />
-                <button type="button" className="fx-btn fx-btn-primary" style={{ marginTop: 6 }} onClick={async () => {
-                  if (!forensicCase?.case_id || !noteText.trim()) return;
-                  await api.capAddNote({ case_id: forensicCase.case_id, author: forensicCase.examiner, body: noteText });
-                  const n = await api.capNotes(forensicCase.case_id);
-                  setNotes(n.notes || []);
-                  setNoteText('');
-                  setStatus('Note saved');
-                }}>Save Note</button>
-                <ul style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--fx-muted)' }}>
-                  {notes.map((n) => <li key={n.note_id}>{n.timestamp}: {n.body}</li>)}
-                </ul>
               </div>
             </div>
             <div className="fx-panel">
@@ -800,7 +1188,7 @@ export default function ForensicApp() {
                   <button type="button" className="fx-btn fx-btn-primary" style={{ marginLeft: 6 }} onClick={async () => {
                     try {
                       const r = await api.capCompareRender({ session_id: compareId, left_time: seekTime, right_time: seekTime });
-                      if (r.preview) setPreview(previewDataUrl(r.preview));
+                      applyToSession(r, 'Comparison rendered');
                     } catch (e) { setError(e.message); }
                   }}>Render Compare</button>
                 )}
@@ -808,9 +1196,134 @@ export default function ForensicApp() {
                   if (!sessionId) return;
                   try {
                     const r = await api.capOverlay(sessionId, { timestamp_text: new Date().toISOString(), grid: true });
-                    handlePreview(r);
+                    applyToSession(r, 'Timestamp + grid applied');
                   } catch (e) { setError(e.message); }
                 }}>Apply Timestamp + Grid</button>
+              </div>
+            </div>
+            <div className="fx-panel">
+              <div className="fx-panel-head">Clipboard Export (R-134)</div>
+              <div className="fx-panel-body">
+                <button type="button" className="fx-btn fx-btn-primary" disabled={!sessionId} onClick={async () => {
+                  try {
+                    const r = await api.capClipboardFrame(sessionId, true);
+                    await navigator.clipboard.writeText(r.data_url || r.base64);
+                    setStatus(`Frame copied (${r.width}×${r.height}) · SHA-256 in response`);
+                  } catch (e) { setError(e.message); }
+                }}>Copy Frame to Clipboard</button>
+                <button type="button" className="fx-btn" style={{ marginLeft: 6 }} disabled={!allHashes} onClick={async () => {
+                  try {
+                    const text = Object.entries(allHashes || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+                    await navigator.clipboard.writeText(text);
+                    setStatus('Hashes copied to clipboard');
+                  } catch (e) { setError(e.message); }
+                }}>Copy Hashes</button>
+              </div>
+            </div>
+            <BookmarksPanel
+              t={t}
+              mediaPath={exportForm.input_path || storagePath}
+              sessionId={sessionId}
+              frameIndex={frameIndex}
+              timeSec={seekTime}
+              selectedFilter={selectedFilter}
+              filterChain={filterChain}
+              filterLabel={filterLabel}
+              onSeek={seekToTime}
+              onApplyFilter={handleBookmarkApplyFilter}
+              setStatus={setStatus}
+              setError={setError}
+              notify={notify}
+            />
+            <SubtitlePanel
+              t={t}
+              videoPath={exportForm.input_path}
+              outputDir={exportForm.output_dir}
+              sessionId={sessionId}
+              playheadSec={seekTime}
+              fontSize={subtitleForm.font_size}
+              marginV={subtitleForm.margin_v}
+              onFontSizeChange={(v) => setSubtitleForm((f) => ({ ...f, font_size: v }))}
+              onMarginVChange={(v) => setSubtitleForm((f) => ({ ...f, margin_v: v }))}
+              outputPath={subtitleForm.output_path}
+              onOutputPathChange={(p) => setSubtitleForm((f) => ({ ...f, output_path: p }))}
+              onApplyPreview={(data, msg) => applyToSession(data, msg, { openLab: false })}
+              setStatus={setStatus}
+              setError={setError}
+              notify={notify}
+              onBlockingChange={setBlocking}
+            />
+            <div className="fx-panel">
+              <div className="fx-panel-head">Stream Sync &amp; Merge (R-172 / R-173)</div>
+              <div className="fx-panel-body">
+                <button type="button" className="fx-btn" onClick={async () => {
+                  try {
+                    const second = prompt('Second video path for sync search:', exportForm.input_path) || exportForm.input_path;
+                    const r = await api.capStreamSync({
+                      path_a: exportForm.input_path,
+                      path_b: second,
+                      time_a: seekTime,
+                      search_sec: 3,
+                    });
+                    setSyncResult(r);
+                    setStatus(r.recommended_offset_ms != null
+                      ? `Best offset: ${r.recommended_offset_ms} ms (score ${r.best_score})`
+                      : `Similarity: ${r.similarity?.score}`);
+                  } catch (e) { setError(e.message); }
+                }}>Find Stream Offset</button>
+                {syncResult && (
+                  <div style={{ marginTop: 8, fontSize: '0.68rem', fontFamily: 'var(--fx-mono)', color: 'var(--fx-muted)' }}>
+                    {JSON.stringify(syncResult, null, 0).slice(0, 200)}…
+                  </div>
+                )}
+                <p className="fx-export-hint" style={{ marginTop: 8 }}>
+                  {t('audio_mux.use_panel', 'Add or replace audio tracks using the Add Audio Stream panel above.')}
+                </p>
+                <button type="button" className="fx-btn" style={{ marginTop: 6, display: 'block' }} onClick={async () => {
+                  try {
+                    const second = prompt('Second video to append:', exportForm.input_path);
+                    if (!second) return;
+                    const r = await api.capMergeVideos({
+                      paths: [exportForm.input_path, second],
+                      output_path: `${exportForm.output_dir}/concat.mp4`,
+                    });
+                    setStatus(r.success ? `Concatenated ${r.segment_count} clips` : (r.stderr || 'Concat failed'));
+                  } catch (e) { setError(e.message); }
+                }}>Concat Videos</button>
+              </div>
+            </div>
+            <div className="fx-panel">
+              <div className="fx-panel-head">Advanced Video (Phase 6)</div>
+              <div className="fx-panel-body">
+                <button type="button" className="fx-btn" onClick={async () => {
+                  try {
+                    const r = await api.capAdvancedStabilize({
+                      input_path: exportForm.input_path,
+                      output_path: `${exportForm.output_dir}/stabilized.mp4`,
+                    });
+                    setStatus(r.success ? `Stabilized (${r.method || 'ok'})` : (r.stderr || 'Failed'));
+                  } catch (e) { setError(e.message); }
+                }}>Stabilize</button>
+                <button type="button" className="fx-btn" style={{ marginLeft: 6 }} onClick={async () => {
+                  try {
+                    const r = await api.capAdvancedReverse({
+                      input_path: exportForm.input_path,
+                      output_path: `${exportForm.output_dir}/reversed.mp4`,
+                    });
+                    setStatus(r.success ? 'Reversed video exported' : (r.stderr || 'Failed'));
+                  } catch (e) { setError(e.message); }
+                }}>Reverse</button>
+                <button type="button" className="fx-btn" style={{ marginTop: 6, display: 'block' }} onClick={async () => {
+                  try {
+                    const fps = Number(prompt('Target FPS:', '15') || '15');
+                    const r = await api.capAdvancedFps({
+                      input_path: exportForm.input_path,
+                      output_path: `${exportForm.output_dir}/fps-adjusted.mp4`,
+                      target_fps: fps,
+                    });
+                    setStatus(r.success ? `FPS adjusted to ${fps}` : (r.stderr || 'Failed'));
+                  } catch (e) { setError(e.message); }
+                }}>Adjust FPS</button>
               </div>
             </div>
           </div>
@@ -843,59 +1356,29 @@ export default function ForensicApp() {
         )}
 
         {page === 'export' && (
-          <div className="fx-content" style={{ gridTemplateColumns: '1fr 1fr', display: 'grid', gap: 16 }}>
-            <div className="fx-panel">
-              <div className="fx-panel-head">Legal Export — I-Frames & Audio</div>
-              <div className="fx-panel-body">
-                <button type="button" className="fx-btn fx-btn-primary" style={{ marginBottom: 8 }} onClick={() => api.exportIFrames({ input_path: exportForm.input_path, output_dir: exportForm.i_frames_dir })}>Export I-Frames Only</button>
-                <button type="button" className="fx-btn" onClick={() => api.extractAudio({ input_path: exportForm.input_path, output_path: exportForm.audio_out })}>Extract Audio Stream</button>
-                <button type="button" className="fx-btn" style={{ marginTop: 8 }} onClick={() => api.capTrim({
-                  input_path: exportForm.input_path,
-                  output_path: `${exportForm.output_dir}/trim.mp4`,
-                  start_sec: 0,
-                  end_sec: 30,
-                })}>Trim Segment (stream copy)</button>
-                <button type="button" className="fx-btn" style={{ marginTop: 8 }} onClick={() => api.capAudioRedact({
-                  input_path: exportForm.input_path,
-                  output_path: `${exportForm.output_dir}/audio-redacted.aac`,
-                  mute_regions: [[5, 10]],
-                })}>Audio Redact (mute 5–10s)</button>
-                <button type="button" className="fx-btn" style={{ marginTop: 8 }} onClick={() => api.capMetadataExport(exportForm.input_path, `${exportForm.output_dir}/metadata.json`)}>Export Metadata Bundle</button>
-                <button type="button" className="fx-btn" style={{ marginTop: 8 }} onClick={() => api.exportPdfFrames({ session_id: sessionId, output_path: exportForm.pdf_path, columns: 2, rows: 2 })}>Export Frames to PDF</button>
-              </div>
-            </div>
-            <div className="fx-panel">
-              <div className="fx-panel-head">Original + Processed Bundle</div>
-              <div className="fx-panel-body">
-                <button type="button" className="fx-btn" onClick={() => api.exportMediaBundle({
-                  input_path: exportForm.input_path,
-                  output_dir: exportForm.output_dir,
-                  include_original: true,
-                  include_processed: true,
-                })}>Export Examination Bundle</button>
-              </div>
-            </div>
-          </div>
+          <LegalExportPanel
+            exportForm={exportForm}
+            setExportForm={setExportForm}
+            sessionId={sessionId}
+            forensicCase={forensicCase}
+            hasPreview={Boolean(preview)}
+            t={t}
+            setStatus={setStatus}
+            setError={setError}
+          />
         )}
 
         {page === 'reports' && (
           <div className="fx-content">
-            <div className="fx-panel" style={{ maxWidth: 520 }}>
-              <div className="fx-panel-head">Forensic Case Report</div>
-              <div className="fx-panel-body">
-                <button type="button" className="fx-btn fx-btn-primary" onClick={() => api.generateReport({
-                  output_dir: '~/Desktop/AI-IVE-reports',
-                  title: `Forensic Report — ${forensicCase?.case_number}`,
-                  author: forensicCase?.examiner || '',
-                  formats: ['html', 'pdf', 'docx'],
-                  template: 'detailed',
-                  paper_size: 'A4',
-                })}>Generate HTML / PDF / DOCX</button>
-                <p style={{ color: 'var(--fx-muted)', marginTop: 12, fontSize: '0.8rem' }}>
-                  Includes workflow steps, filter settings, and references for court-ready documentation.
-                </p>
-              </div>
-            </div>
+            <CaseReportsPanel
+              t={t}
+              forensicCase={forensicCase}
+              exportForm={exportForm}
+              locale={locale}
+              setStatus={setStatus}
+              setError={setError}
+              notify={notify}
+            />
           </div>
         )}
 
@@ -903,9 +1386,85 @@ export default function ForensicApp() {
           {status}
           {error && <span style={{ color: 'var(--fx-danger)' }}> | {error}</span>}
         </footer>
+        {toasts.length > 0 && (
+          <div className="fx-toast-stack" aria-live="polite">
+            {toasts.map((toast) => (
+              <div key={toast.id} className={`fx-toast fx-toast-${toast.type}`}>
+                {toast.message}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      </div>
+
+      {blockingOverlay && (
+        <div className="fx-blocking-overlay" role="alertdialog" aria-modal="true" aria-busy="true">
+          <div className="fx-blocking-card">
+            <div className="fx-blocking-spinner" aria-hidden="true" />
+            <p className="fx-blocking-title">{blockingOverlay.message}</p>
+            <p className="fx-blocking-detail">{t('subtitle.burning_wait', 'Please wait until the file is saved.')}</p>
+            {blockingOverlay.detail ? (
+              <code className="fx-blocking-path">{blockingOverlay.detail}</code>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <ProjectNotesPanel
+        collapsed={notesCollapsed}
+        onToggleCollapse={() => {
+          setNotesCollapsed((c) => {
+            const next = !c;
+            localStorage.setItem('chakshu.notesCollapsed', next ? '1' : '0');
+            return next;
+          });
+        }}
+        projectName={projectMeta.name || forensicCase?.title}
+        projectId={projectMeta.project_id}
+        notes={notes}
+        author={forensicCase?.examiner}
+        evidenceId={evidenceId}
+        frameIndex={frameIndex}
+        timeSec={seekTime}
+        t={t}
+        onRefresh={refreshProjectNotes}
+        onAdd={async (payload) => {
+          await api.projectNoteAdd({
+            ...payload,
+            case_id: forensicCase?.case_id,
+          });
+          await refreshProjectNotes();
+          setStatus(t('notes.saved', 'Note saved to project'));
+        }}
+        onDelete={async (noteId) => {
+          await api.projectNoteDelete(noteId);
+          await refreshProjectNotes();
+          setStatus(t('notes.deleted', 'Note deleted'));
+        }}
+      />
       </div>
 
       <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={onUpload} />
+      <input
+        ref={aiModelFileRef}
+        type="file"
+        accept=".onnx"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            await api.aiImportModel(file, { name: file.name.replace(/\.onnx$/i, '') });
+            const models = await api.aiModels();
+            setAiModels(models.models || []);
+            setAiModelId(models.models?.[models.models.length - 1]?.id || '');
+            setAiTool('custom_onnx');
+            setStatus(`Imported ${file.name}`);
+          } catch (err) { setError(err.message); }
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }

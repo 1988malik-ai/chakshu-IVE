@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+CASE_NUMBER_PREFIX = "CHK"
+_GENERIC_CASE_NUMBERS = frozenset({"", "CASE-001", "NEW", "NEW CASE"})
 
 
 @dataclass
@@ -49,6 +53,15 @@ class ForensicCase:
     notes: str = ""
     tags: list[str] = field(default_factory=list)
 
+    @property
+    def display_id(self) -> str:
+        """Human-readable identifier for UI and reports."""
+        if self.case_number and self.case_number.upper() not in _GENERIC_CASE_NUMBERS:
+            return self.case_number
+        if self.case_id and not _looks_like_uuid(self.case_id):
+            return self.case_id
+        return self.case_number or self.case_id
+
     def log_custody(self, evidence_id: str, action: str, actor: str, notes: str = "", **kwargs: str) -> None:
         for ev in self.evidence:
             if ev.evidence_id == evidence_id:
@@ -65,6 +78,18 @@ class ForensicCase:
                 self.updated = datetime.utcnow().isoformat()
                 return
         raise KeyError(f"Evidence not found: {evidence_id}")
+
+
+def _looks_like_uuid(value: str) -> bool:
+    v = value.replace("-", "")
+    return len(v) == 32 and all(c in "0123456789abcdefABCDEF" for c in v)
+
+
+def _slug_case_id(case_number: str) -> str:
+    s = case_number.strip().upper()
+    s = re.sub(r"[^\w\-]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return (s[:48] if s else "") or f"{CASE_NUMBER_PREFIX}-{datetime.utcnow().strftime('%Y%m%d')}"
 
 
 def sha256_file(path: Path) -> str:
@@ -86,10 +111,60 @@ class CaseStore:
         self._cases: dict[str, ForensicCase] = {}
         self._active_case_id: str | None = None
 
-    def create_case(self, case_number: str, title: str, examiner: str, agency: str = "") -> ForensicCase:
+    def _next_case_number(self) -> str:
+        """CHK-YYYYMMDD-001 style — date + daily sequence."""
+        self._load_all()
+        today = datetime.utcnow().strftime("%Y%m%d")
+        prefix = f"{CASE_NUMBER_PREFIX}-{today}-"
+        nums: list[int] = []
+        for case in self._cases.values():
+            for candidate in (case.case_number, case.case_id):
+                if not candidate or not candidate.startswith(prefix):
+                    continue
+                tail = candidate[len(prefix) :]
+                if tail.isdigit():
+                    nums.append(int(tail))
+        seq = max(nums, default=0) + 1
+        return f"{prefix}{seq:03d}"
+
+    def _unique_case_id(self, base: str) -> str:
+        if base not in self._cases:
+            return base
+        for i in range(2, 1000):
+            candidate = f"{base}-{i:02d}"
+            if candidate not in self._cases:
+                return candidate
+        return f"{base}-{uuid.uuid4().hex[:6].upper()}"
+
+    def _allocate_case_ids(self, case_number: str = "") -> tuple[str, str]:
+        requested = (case_number or "").strip()
+        if not requested or requested.upper() in _GENERIC_CASE_NUMBERS:
+            number = self._next_case_number()
+        else:
+            number = requested.upper()
+        case_id = self._unique_case_id(_slug_case_id(number))
+        return case_id, number
+
+    def _next_evidence_id(self, case: ForensicCase) -> str:
+        nums: list[int] = []
+        for ev in case.evidence:
+            if ev.evidence_id.startswith("EV-"):
+                tail = ev.evidence_id[3:]
+                if tail.isdigit():
+                    nums.append(int(tail))
+        return f"EV-{max(nums, default=0) + 1:03d}"
+
+    def create_case(
+        self,
+        case_number: str = "",
+        title: str = "New Examination",
+        examiner: str = "Examiner",
+        agency: str = "",
+    ) -> ForensicCase:
+        case_id, number = self._allocate_case_ids(case_number)
         case = ForensicCase(
-            case_id=str(uuid.uuid4()),
-            case_number=case_number,
+            case_id=case_id,
+            case_number=number,
             title=title,
             examiner=examiner,
             agency=agency,
@@ -99,13 +174,25 @@ class CaseStore:
         self._persist(case)
         return case
 
+    def _upgrade_display_number(self, case: ForensicCase) -> None:
+        """Replace generic CASE-001 with a readable Chakshu case number."""
+        if case.case_number.strip().upper() not in _GENERIC_CASE_NUMBERS:
+            return
+        case.case_number = self._next_case_number()
+        self._persist(case)
+
     def active_case(self) -> ForensicCase:
+        self._load_all()
         if self._active_case_id and self._active_case_id in self._cases:
-            return self._cases[self._active_case_id]
+            case = self._cases[self._active_case_id]
+            self._upgrade_display_number(case)
+            return case
         if self._cases:
             self._active_case_id = next(iter(self._cases))
-            return self._cases[self._active_case_id]
-        c = self.create_case("CASE-001", "New Examination", "Examiner")
+            case = self._cases[self._active_case_id]
+            self._upgrade_display_number(case)
+            return case
+        c = self.create_case(title="New Examination", examiner="Examiner")
         return c
 
     def set_active(self, case_id: str) -> ForensicCase:
@@ -135,7 +222,7 @@ class CaseStore:
         storage.write_bytes(data)
 
         item = EvidenceItem(
-            evidence_id=str(uuid.uuid4()),
+            evidence_id=self._next_evidence_id(case),
             filename=filename,
             media_type=media_type,
             sha256=digest,

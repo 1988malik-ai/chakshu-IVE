@@ -1,26 +1,27 @@
 {
-  "name": "ai-ive-desktop",
+  "name": "chakshu-desktop",
   "version": "1.0.0",
   "private": true,
   "main": "main.js",
+  "description": "Chakshu Forensics — Windows desktop shell",
   "scripts": {
     "start": "electron .",
-    "build": "npm run build --prefix ../frontend && electron-builder --win --x64"
+    "build": "electron-builder --win --x64"
   },
   "devDependencies": {
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.aiive.app",
-    "productName": "AI-IVE",
+    "appId": "com.chakshu.forensics",
+    "productName": "Chakshu Forensics",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "main.js",
-      "preload.js",
-      "../frontend/dist/**/*"
+      "preload.js"
     ],
     "extraResources": [
       {
@@ -30,8 +31,22 @@
       }
     ],
     "win": {
-      "target": ["nsis"],
-      "artifactName": "AI-IVE-Setup-${version}.exe"
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "../frontend/public/favicon.svg",
+      "artifactName": "Chakshu-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Chakshu-Native-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Chakshu Forensics"
     }
   }
 }

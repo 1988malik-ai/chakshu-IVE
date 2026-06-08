@@ -47,6 +47,7 @@ class Bookmark:
         filter_id: str,
         filter_params: dict[str, Any] | None = None,
         frame_index: int | None = None,
+        time_sec: float | None = None,
         label: str = "",
         **metadata: Any,
     ) -> Bookmark:
@@ -57,6 +58,7 @@ class Bookmark:
             filter_id=filter_id,
             filter_params=filter_params or {},
             frame_index=frame_index,
+            time_sec=time_sec,
             label=label,
             metadata=metadata,
         )
@@ -84,6 +86,12 @@ class BookmarkStore:
         self.save()
         return bookmark
 
+    def get(self, bookmark_id: str) -> Bookmark | None:
+        for b in self._items:
+            if b.id == bookmark_id:
+                return b
+        return None
+
     def remove(self, bookmark_id: str) -> bool:
         before = len(self._items)
         self._items = [b for b in self._items if b.id != bookmark_id]
@@ -92,8 +100,46 @@ class BookmarkStore:
             return True
         return False
 
+    def update(
+        self,
+        bookmark_id: str,
+        *,
+        label: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        frame_index: int | None = None,
+        time_sec: float | None = None,
+    ) -> Bookmark | None:
+        bm = self.get(bookmark_id)
+        if not bm:
+            return None
+        if label is not None:
+            bm.label = label
+        if metadata is not None:
+            bm.metadata = metadata
+        if frame_index is not None:
+            bm.frame_index = frame_index
+        if time_sec is not None:
+            bm.time_sec = time_sec
+        self.save()
+        return bm
+
     def list_for_media(self, media_path: str) -> list[Bookmark]:
         return [b for b in self._items if b.media_path == media_path]
 
     def all(self) -> list[Bookmark]:
         return list(self._items)
+
+    def to_dict(self, bookmark: Bookmark) -> dict[str, Any]:
+        return {
+            "id": bookmark.id,
+            "media_path": bookmark.media_path,
+            "type": bookmark.bookmark_type,
+            "bookmark_type": bookmark.bookmark_type,
+            "label": bookmark.label,
+            "frame_index": bookmark.frame_index,
+            "time_sec": bookmark.time_sec,
+            "filter_id": bookmark.filter_id,
+            "filter_params": bookmark.filter_params,
+            "metadata": bookmark.metadata,
+            "created": bookmark.created,
+        }

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from aive.annotations.store import Annotation, annotation_store
+from aive.api.examination_payload import examination_preview_fields
 from aive.api.session import sessions
 from aive.audio.mux import add_audio_stream, adjust_av_sync, pad_video_to_audio_length
 from aive.audio.redaction import adjust_volume, redact_audio_regions
@@ -18,7 +19,8 @@ from aive.export.trim import export_frame_list_copy, trim_segment_copy
 from aive.forensics.audit import audit_log
 from aive.forensics.case import case_store
 from aive.forensics.hash_verify import ALGORITHMS, hash_all_algorithms, hash_file, hash_frame, verify_file
-from aive.forensics.notes import notes_store
+from aive.project import examination_notes as project_notes
+from aive.project.workflow import project_store
 from aive.forensics.secure_copy import secure_copy
 from aive.integration.metadata import export_metadata_bundle, ffprobe_full, image_exif
 from aive.measurement.tools import Calibration, estimate_speed, measure_distance
@@ -78,12 +80,21 @@ class AudioRedactBody(BaseModel):
     input_path: str
     output_path: str
     mute_regions: list[list[float]]
+    mode: str = "mute"
 
 
 class AudioMuxBody(BaseModel):
     video_path: str
     audio_path: str
     output_path: str
+    mode: str = "add"  # add | replace
+    audio_codec: str = "aac"
+    audio_delay_ms: float = 0
+    use_shortest: bool = False
+    auto_pad_video: bool = True
+    pad_video: bool = False  # legacy alias — forces padding when set
+    stream_language: str | None = None
+    stream_title: str | None = None
 
 
 class AudioSyncBody(BaseModel):
@@ -208,12 +219,85 @@ def export_frames(body: FrameListBody) -> dict[str, Any]:
 @router.post("/audio/redact")
 def audio_redact(body: AudioRedactBody) -> dict[str, Any]:
     regions = [(float(a[0]), float(a[1])) for a in body.mute_regions]
-    return redact_audio_regions(_path(body.input_path), Path(body.output_path).expanduser(), regions)
+    result = redact_audio_regions(
+        _path(body.input_path),
+        Path(body.output_path).expanduser(),
+        regions,
+        mode=body.mode,
+    )
+    if result.get("success"):
+        project_store.current.add_step(
+            "audio_redact",
+            settings={
+                "input_path": body.input_path,
+                "output_path": body.output_path,
+                "mute_regions": body.mute_regions,
+                "mode": body.mode,
+            },
+        )
+        case = case_store.active_case()
+        audit_log.record(case.case_id, "AUDIO_REDACT", case.examiner or "examiner", body.input_path)
+    return result
+
+
+@router.get("/audio/streams")
+def audio_streams(path: str) -> dict[str, Any]:
+    """List audio streams on a media file (R-115)."""
+    from aive.export.audio import probe_audio_streams
+
+    p = _path(path)
+    streams = probe_audio_streams(p)
+    return {"path": str(p), "count": len(streams), "streams": streams}
+
+
+@router.get("/audio/duration-compare")
+def audio_duration_compare(video_path: str, audio_path: str) -> dict[str, Any]:
+    """Compare video vs audio duration — R-117 auto-padding hint."""
+    from aive.audio.duration import compare_av_duration
+
+    return compare_av_duration(_path(video_path), _path(audio_path))
 
 
 @router.post("/audio/mux")
 def audio_mux(body: AudioMuxBody) -> dict[str, Any]:
-    return add_audio_stream(_path(body.video_path), _path(body.audio_path), Path(body.output_path).expanduser())
+    """Add or replace audio on video (R-115 / R-117 auto pad)."""
+    video = _path(body.video_path)
+    audio = _path(body.audio_path)
+    out = Path(body.output_path).expanduser()
+
+    result = add_audio_stream(
+        video,
+        audio,
+        out,
+        mode=body.mode,
+        audio_codec=body.audio_codec,
+        audio_delay_ms=body.audio_delay_ms,
+        use_shortest=body.use_shortest,
+        auto_pad_video=body.auto_pad_video,
+        force_pad=body.pad_video,
+        stream_language=body.stream_language,
+        stream_title=body.stream_title,
+    )
+
+    if result.get("success"):
+        step_action = "pad_video_to_audio" if result.get("video_padded") else "add_audio_stream"
+        project_store.current.add_step(
+            step_action,
+            settings={**body.model_dump(), "pad_seconds": result.get("pad_seconds", 0)},
+            references=[body.audio_path, body.video_path],
+        )
+        case = case_store.active_case()
+        audit_log.record(
+            case.case_id,
+            "AUDIO_MUX",
+            case.examiner or "examiner",
+            body.video_path,
+            mode=body.mode,
+            audio_path=body.audio_path,
+            video_padded=result.get("video_padded"),
+            pad_seconds=result.get("pad_seconds"),
+        )
+    return result
 
 
 @router.post("/audio/sync")
@@ -234,20 +318,43 @@ def audio_volume(body: VolumeBody) -> dict[str, Any]:
 
 @router.post("/audio/pad-video")
 def audio_pad(body: AudioMuxBody) -> dict[str, Any]:
-    return pad_video_to_audio_length(_path(body.video_path), _path(body.audio_path), Path(body.output_path).expanduser())
+    """R-117 — pad video to match longer audio."""
+    result = pad_video_to_audio_length(
+        _path(body.video_path),
+        _path(body.audio_path),
+        Path(body.output_path).expanduser(),
+        keep_original_audio=body.mode != "replace",
+        audio_codec=body.audio_codec,
+    )
+    if result.get("success"):
+        project_store.current.add_step(
+            "pad_video_to_audio",
+            settings=body.model_dump(),
+            references=[body.audio_path, body.video_path],
+        )
+    return result
 
 
 @router.get("/notes/{case_id}")
 def list_notes(case_id: str) -> dict[str, Any]:
-    items = notes_store.list(case_id)
-    return {"notes": [n.__dict__ for n in items]}
+    """Legacy case route — returns project notes filtered by case when possible."""
+    project_notes.hydrate_from_sidecar()
+    items = project_notes.list_notes()
+    filtered = [n for n in items if not n.case_id or n.case_id == case_id]
+    return {"notes": [n.to_dict() for n in filtered]}
 
 
 @router.post("/notes")
 def add_note(body: NoteBody) -> dict[str, Any]:
-    note = notes_store.add(body.case_id, body.author, body.body, body.evidence_id, body.tags)
-    audit_log.record(body.case_id, "NOTE_ADD", body.author)
-    return {"note": note.__dict__}
+    note = project_notes.add_note(
+        body.author,
+        body.body,
+        case_id=body.case_id,
+        evidence_id=body.evidence_id,
+        tags=body.tags,
+    )
+    audit_log.record(body.case_id or project_store.current.project_id, "NOTE_ADD", body.author)
+    return {"note": note.to_dict()}
 
 
 @router.get("/annotations/{media_id}")
@@ -280,7 +387,7 @@ def privacy_redact(body: RedactBody) -> dict[str, Any]:
     session.frame = redact_regions(session.frame, body.regions)
     if session.master_frame is not None:
         session.master_frame = redact_regions(session.master_frame, body.regions)
-    return {"preview": sessions.frame_to_base64_jpeg(session.frame)}
+    return examination_preview_fields(session)
 
 
 @router.post("/examination/overlay")
@@ -294,7 +401,7 @@ def apply_overlay(body: OverlayBody) -> dict[str, Any]:
     if body.grid:
         frame = draw_grid(frame)
     session.frame = frame
-    return {"preview": sessions.frame_to_base64_jpeg(frame)}
+    return examination_preview_fields(session)
 
 
 @router.post("/measure/distance")
@@ -442,4 +549,214 @@ def advanced_perspective_stabilize(body: AdvancedVideoBody) -> dict[str, Any]:
     from aive.video.advanced import perspective_stabilize_video
 
     return perspective_stabilize_video(_path(body.input_path), Path(body.output_path).expanduser())
+
+
+class ClipboardTextBody(BaseModel):
+    text: str
+
+
+class SubtitleBurnBody(BaseModel):
+    video_path: str
+    subtitle_path: str
+    output_path: str
+    font_size: int = 22
+    font_name: str = "Arial"
+    margin_v: int = 28
+    outline: int = 2
+    alignment: int = 2
+
+
+class MergeAvBody(BaseModel):
+    video_path: str
+    audio_path: str
+    output_path: str
+    audio_delay_ms: float = 0.0
+
+
+class MergeVideosBody(BaseModel):
+    paths: list[str]
+    output_path: str
+    reencode: bool = True
+
+
+class StreamSyncBody(BaseModel):
+    path_a: str
+    path_b: str
+    time_a: float = 0.0
+    time_b: float = 0.0
+    search_sec: float = 2.0
+
+
+@router.get("/clipboard/frame")
+def clipboard_frame(session_id: str, include_hash: bool = True) -> dict[str, Any]:
+    """R-134 — frame payload for clipboard / office paste."""
+    from aive.export.clipboard import frame_clipboard_payload
+
+    session = sessions.get(session_id)
+    if not session or session.frame is None:
+        raise HTTPException(404, "No frame in session")
+    return frame_clipboard_payload(session.frame, include_hash)
+
+
+@router.post("/clipboard/text")
+def clipboard_text(body: ClipboardTextBody) -> dict[str, Any]:
+    from aive.export.clipboard import text_clipboard_payload
+
+    return text_clipboard_payload(body.text)
+
+
+class SubtitlePathBody(BaseModel):
+    path: str
+    limit: int = 2000
+
+
+class SubtitleOverlaySessionBody(BaseModel):
+    session_id: str
+    subtitle_path: str
+    time_sec: float | None = None
+    font_size: int = 22
+    margin_v: int = 28
+    apply_to_enhanced: bool = True
+
+
+@router.post("/subtitles/parse")
+def subtitles_parse(body: SubtitlePathBody) -> dict[str, Any]:
+    """R-120 — parse SRT or SMI subtitle file."""
+    from aive.subtitles.renderer import SubtitleParser, cues_to_dicts
+
+    path = _path(body.path)
+    cues = SubtitleParser.load(path)
+    return {
+        "path": str(path),
+        "format": SubtitleParser.detect_format(path),
+        "count": len(cues),
+        "cues": cues_to_dicts(cues, body.limit),
+    }
+
+
+@router.get("/subtitles/cue-at-time")
+def subtitles_cue_at_time(path: str, time_sec: float) -> dict[str, Any]:
+    from aive.subtitles.renderer import SubtitleParser, cue_at_time
+
+    p = _path(path)
+    cues = SubtitleParser.load(p)
+    cue = cue_at_time(cues, time_sec)
+    if not cue:
+        return {"active": False, "time_sec": time_sec}
+    return {
+        "active": True,
+        "time_sec": time_sec,
+        "cue": {"start": cue.start_sec, "end": cue.end_sec, "text": cue.text},
+    }
+
+
+@router.post("/subtitles/overlay-session")
+def subtitles_overlay_session(body: SubtitleOverlaySessionBody) -> dict[str, Any]:
+    """R-120 — render active subtitle cue onto the current examination frame."""
+    from aive.overlays.compose import draw_subtitle_cue
+    from aive.subtitles.renderer import SubtitleParser, cue_at_time
+
+    session = sessions.get(body.session_id)
+    if not session or session.frame is None:
+        raise HTTPException(404, "No frame in session")
+    cues = SubtitleParser.load(_path(body.subtitle_path))
+    t = body.time_sec if body.time_sec is not None else session.time_sec
+    cue = cue_at_time(cues, t)
+    if not cue:
+        return {
+            **examination_preview_fields(session),
+            "subtitle_active": False,
+            "subtitle_time_sec": t,
+        }
+    h, w = session.frame.shape[:2]
+    scale = max(0.45, w / 1600) * (body.font_size / 22.0)
+    frame = draw_subtitle_cue(
+        session.frame,
+        cue.text,
+        font_scale=scale,
+        margin_v=body.margin_v,
+    )
+    if body.apply_to_enhanced:
+        session.frame = frame
+    else:
+        session.master_frame = frame
+    project_store.current.add_step(
+        "subtitle_overlay",
+        settings={"subtitle_path": body.subtitle_path, "time_sec": t, "text": cue.text[:120]},
+    )
+    return {
+        **examination_preview_fields(session),
+        "subtitle_active": True,
+        "subtitle_time_sec": t,
+        "subtitle_text": cue.text,
+        "subtitle_start": cue.start_sec,
+        "subtitle_end": cue.end_sec,
+    }
+
+
+@router.post("/subtitles/burn")
+def subtitles_burn(body: SubtitleBurnBody) -> dict[str, Any]:
+    """R-121 — styled subtitle burn-in (SRT / SMI)."""
+    from aive.subtitles.renderer import SubtitleParser, burn_subtitles
+
+    style = {
+        "font_size": body.font_size,
+        "font_name": body.font_name,
+        "margin_v": body.margin_v,
+        "outline": body.outline,
+        "alignment": body.alignment,
+    }
+    sub_path = _path(body.subtitle_path)
+    result = burn_subtitles(
+        _path(body.video_path),
+        sub_path,
+        Path(body.output_path).expanduser(),
+        style,
+    )
+    if result.get("success"):
+        project_store.current.add_step(
+            "subtitle_burn",
+            settings={
+                "video_path": body.video_path,
+                "subtitle_path": body.subtitle_path,
+                "format": SubtitleParser.detect_format(sub_path),
+                "output_path": body.output_path,
+            },
+        )
+    return result
+
+
+@router.post("/merge/av")
+def merge_av(body: MergeAvBody) -> dict[str, Any]:
+    """R-173 — merge video + audio streams."""
+    from aive.video.merge import merge_av_streams
+
+    return merge_av_streams(
+        _path(body.video_path),
+        _path(body.audio_path),
+        Path(body.output_path).expanduser(),
+        body.audio_delay_ms,
+    )
+
+
+@router.post("/merge/videos")
+def merge_videos(body: MergeVideosBody) -> dict[str, Any]:
+    """R-173 — concatenate multiple videos."""
+    from aive.video.merge import concat_videos
+
+    if len(body.paths) < 2:
+        raise HTTPException(400, "At least two video paths required")
+    paths = [_path(p) for p in body.paths]
+    return concat_videos(paths, Path(body.output_path).expanduser(), body.reencode)
+
+
+@router.post("/sync/similarity")
+def sync_similarity(body: StreamSyncBody) -> dict[str, Any]:
+    """R-172 — frame similarity and offset search."""
+    from aive.analysis.sync import compare_streams_at_time, find_best_offset
+
+    pa, pb = _path(body.path_a), _path(body.path_b)
+    if body.search_sec > 0 and body.time_a == body.time_b:
+        return find_best_offset(pa, pb, body.time_a, body.search_sec)
+    return compare_streams_at_time(pa, pb, body.time_a, body.time_b)
 

@@ -1,0 +1,147 @@
+.fx-bookmarks-panel {
+  grid-column: 1 / -1;
+}
+
+.fx-bookmark-warn {
+  color: var(--fx-warn);
+  font-size: 0.75rem;
+  margin: 0 0 10px;
+}
+
+.fx-bookmark-pos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 12px;
+  font-size: 0.72rem;
+  color: var(--fx-muted);
+}
+
+.fx-bookmark-pos code {
+  font-family: var(--fx-mono);
+  color: var(--fx-accent-2);
+  font-size: 0.7rem;
+}
+
+.fx-bookmark-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fx-bookmark-meta-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fx-bookmark-span2 {
+  grid-column: 1 / -1;
+}
+
+.fx-bookmark-notes {
+  resize: vertical;
+  min-height: 52px;
+  font-family: inherit;
+}
+
+.fx-bookmark-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--fx-border);
+  border-radius: 6px;
+}
+
+.fx-bookmark-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--fx-muted);
+  font-size: 0.75rem;
+}
+
+.fx-bookmark-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-bookmark-item:last-child {
+  border-bottom: none;
+}
+
+.fx-bookmark-item.editing {
+  background: #1a2d4d;
+}
+
+.fx-bookmark-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fx-bookmark-item-head strong {
+  font-size: 0.82rem;
+}
+
+.fx-bookmark-type {
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-family: var(--fx-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.fx-bookmark-type-frame {
+  background: #0a2e1a;
+  color: var(--fx-accent-2);
+}
+
+.fx-bookmark-type-filter {
+  background: #1a2440;
+  color: var(--fx-accent);
+}
+
+.fx-bookmark-item-meta {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  font-family: var(--fx-mono);
+  color: var(--fx-muted);
+}
+
+.fx-bookmark-item-notes {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--fx-text);
+}
+
+.fx-bookmark-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.fx-bookmark-tag {
+  font-size: 0.62rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--fx-panel-2);
+  border: 1px solid var(--fx-border);
+  color: var(--fx-muted);
+}
+
+.fx-bookmark-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}

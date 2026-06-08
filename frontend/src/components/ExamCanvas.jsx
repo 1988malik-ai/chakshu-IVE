@@ -235,7 +235,7 @@ export default function ExamCanvas({
           image_height: h,
         });
       }
-      const rendered = await api.markupRender(sessionId, mediaId, frameIndex);
+      const rendered = await api.markupRender(sessionId, mediaId, frameIndex, false);
       onPreviewUpdate?.(previewDataUrl(rendered.preview));
       onStatus?.(`Added ${tool} annotation`);
       await refreshList();
@@ -268,9 +268,10 @@ export default function ExamCanvas({
 
   const burnAnnotations = async () => {
     try {
-      const r = await api.markupRender(sessionId, mediaId, frameIndex);
+      const r = await api.markupRender(sessionId, mediaId, frameIndex, true);
       onPreviewUpdate?.(previewDataUrl(r.preview));
-      onStatus?.('Annotations rendered on examination frame');
+      setAnnotations([]);
+      onStatus?.('Annotations burned into master frame');
     } catch (err) {
       onError?.(err.message);
     }

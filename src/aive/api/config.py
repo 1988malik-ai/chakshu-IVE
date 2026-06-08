@@ -13,10 +13,16 @@ DEFAULT_FRONTEND_PORT = 9451
 
 
 def _load_yaml() -> dict:
-    for base in (
-        Path(__file__).resolve().parents[3],
-        Path.cwd(),
-    ):
+    bases: list[Path] = [Path.cwd()]
+    try:
+        import sys
+
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            bases.insert(0, Path(sys._MEIPASS))
+    except ImportError:
+        pass
+    bases.append(Path(__file__).resolve().parents[3])
+    for base in bases:
         path = base / "config" / "app.yaml"
         if path.exists():
             with open(path) as f:

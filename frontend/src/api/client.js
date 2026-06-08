@@ -32,6 +32,18 @@ export const api = {
     }
     return data;
   },
+  uploadSubtitle: async (file, sessionId = '') => {
+    const form = new FormData();
+    form.append('file', file);
+    const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+    const res = await fetch(`${API_BASE}/api/subtitles/upload${q}`, {
+      method: 'POST',
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(parseApiError(data, res.statusText));
+    return data;
+  },
   loadMediaPath: (sessionId, path) =>
     request('/api/media/load-path', {
       method: 'POST',
@@ -72,6 +84,12 @@ export const api = {
       body: JSON.stringify({ session_id: '', path }),
     }),
   projectCurrent: () => request('/api/project/current'),
+  projectExportSettings: (body) =>
+    request('/api/project/export-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   projectNew: (name) =>
     request('/api/project/new', {
       method: 'POST',
@@ -91,6 +109,15 @@ export const api = {
       body: JSON.stringify({ path }),
     }),
   projectYaml: () => request('/api/project/export-yaml'),
+  projectNotes: () => request('/api/project/notes'),
+  projectNoteAdd: (body) =>
+    request('/api/project/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  projectNoteDelete: (noteId) =>
+    request(`/api/project/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' }),
   exportPdfFrames: (body) =>
     request('/api/export/pdf-frames', {
       method: 'POST',
@@ -122,7 +149,43 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+  reportPreview: () => request('/api/reports/preview'),
   reportTemplates: () => request('/api/reports/templates'),
+  i18nLocales: () => request('/api/i18n/locales'),
+  i18nStrings: (locale) => request(`/api/i18n/${encodeURIComponent(locale)}`),
+  a11yOptions: () => request('/api/accessibility/options'),
+  a11yTheme: (highContrast, colorBlind) =>
+    request(`/api/accessibility/theme?high_contrast=${highContrast ? 'true' : 'false'}&color_blind=${encodeURIComponent(colorBlind || 'none')}`),
+
+  aiStatus: () => request('/api/ai/status'),
+  aiTools: () => request('/api/ai/tools'),
+  aiModels: () => request('/api/ai/models'),
+  aiEnhanceSession: (body) =>
+    request('/api/ai/enhance/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  aiImportModel: async (file, meta = {}) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (meta.model_id) form.append('model_id', meta.model_id);
+    if (meta.name) form.append('name', meta.name);
+    if (meta.task) form.append('task', meta.task);
+    if (meta.description) form.append('description', meta.description);
+    const res = await fetch(`${API_BASE}/api/ai/models/import`, { method: 'POST', body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(parseApiError(data, res.statusText));
+    return data;
+  },
+  aiImportModelPath: (body) =>
+    request('/api/ai/models/import-path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  aiDeleteModel: (modelId) =>
+    request(`/api/ai/models/${encodeURIComponent(modelId)}`, { method: 'DELETE' }),
 
   forensicsActiveCase: () => request('/api/forensics/cases/active'),
   forensicsCreateCase: (body) =>
@@ -146,6 +209,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, index }),
     }),
+  forensicsPreview: (sessionId) =>
+    request(`/api/forensics/examination/preview?session_id=${encodeURIComponent(sessionId)}`),
   forensicsAnalyzeVideo: (path) =>
     request(`/api/forensics/examination/analyze-video?path=${encodeURIComponent(path)}`, { method: 'POST' }),
   forensicsHash: (path, algorithm = 'all') =>
@@ -169,6 +234,12 @@ export const api = {
     request('/api/capabilities/video/trim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capAudioRedact: (body) =>
     request('/api/capabilities/audio/redact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capAudioStreams: (path) =>
+    request(`/api/capabilities/audio/streams?path=${encodeURIComponent(path)}`),
+  capAudioDurationCompare: (videoPath, audioPath) =>
+    request(
+      `/api/capabilities/audio/duration-compare?video_path=${encodeURIComponent(videoPath)}&audio_path=${encodeURIComponent(audioPath)}`,
+    ),
   capAudioMux: (body) =>
     request('/api/capabilities/audio/mux', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capNotes: (caseId) => request(`/api/capabilities/notes/${caseId}`),
@@ -189,12 +260,27 @@ export const api = {
   capMetadataExport: (path, output_path) =>
     request(`/api/capabilities/metadata/export?path=${encodeURIComponent(path)}&output_path=${encodeURIComponent(output_path)}`, { method: 'POST' }),
   capCaptureDevices: () => request('/api/capture/devices'),
-  captureStreamUrl: (device = 0, filterId = null) => {
-    const base = import.meta.env.VITE_API_URL || '';
-    let url = `${base}/api/capture/stream/mjpeg?device=${device}&fps=15`;
+  /** MJPEG must hit the API directly — Vite proxy breaks multipart streams. */
+  captureStreamUrl: (device = 0, filterId = null, cacheBust = 0) => {
+    const port = import.meta.env.VITE_API_PORT || '9450';
+    const base = import.meta.env.VITE_API_URL || `http://127.0.0.1:${port}`;
+    let url = `${base}/api/capture/stream/mjpeg?device=${device}&fps=12`;
     if (filterId) url += `&filter_id=${encodeURIComponent(filterId)}`;
+    if (cacheBust) url += `&_=${cacheBust}`;
     return url;
   },
+  capStopCaptureStream: (device = null) => {
+    const port = import.meta.env.VITE_API_PORT || '9450';
+    const base = import.meta.env.VITE_API_URL || `http://127.0.0.1:${port}`;
+    const q = device != null ? `?device=${device}` : '';
+    return fetch(`${base}/api/capture/stream/stop${q}`, { method: 'POST' }).then((r) => r.json());
+  },
+  capProcessFrame: (filterId, previewBase64) =>
+    request('/api/capture/process-frame', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filter_id: filterId, preview_base64: previewBase64 }),
+    }),
   capCaptureSnapshot: (device = 0, filterId = null) => {
     let q = `/api/capture/snapshot?device=${device}`;
     if (filterId) q += `&filter_id=${encodeURIComponent(filterId)}`;
@@ -230,6 +316,39 @@ export const api = {
   timelineLoadSecondary: (sessionId, path, label = 'secondary') =>
     request('/api/timeline/video/secondary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, path, label }) }),
 
+  capClipboardFrame: (sessionId, includeHash = true) =>
+    request(`/api/capabilities/clipboard/frame?session_id=${encodeURIComponent(sessionId)}&include_hash=${includeHash}`),
+  capClipboardText: (text) =>
+    request('/api/capabilities/clipboard/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }),
+  subtitlesParse: (path, limit = 2000) =>
+    request('/api/capabilities/subtitles/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, limit }),
+    }),
+  subtitlesOverlaySession: (body) =>
+    request('/api/capabilities/subtitles/overlay-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  subtitlesCueAtTime: (path, timeSec) =>
+    request(`/api/capabilities/subtitles/cue-at-time?path=${encodeURIComponent(path)}&time_sec=${timeSec}`),
+  capSubtitleBurn: (body) =>
+    request('/api/capabilities/subtitles/burn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capMergeAv: (body) =>
+    request('/api/capabilities/merge/av', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capMergeVideos: (body) =>
+    request('/api/capabilities/merge/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capStreamSync: (body) =>
+    request('/api/capabilities/sync/similarity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capAdvancedFps: (body) =>
+    request('/api/capabilities/advanced/fps-adjust', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capAdvancedReverse: (body) =>
+    request('/api/capabilities/advanced/reverse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capAdvancedStabilize: (body) =>
+    request('/api/capabilities/advanced/stabilize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+
   markupListAnnotations: (mediaId, frameIndex = null) => {
     let q = `?media_id=${encodeURIComponent(mediaId)}`;
     if (frameIndex != null) q += `&frame_index=${frameIndex}`;
@@ -239,14 +358,37 @@ export const api = {
     request('/api/markup/annotations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   markupDeleteAnnotation: (mediaId, annotationId) =>
     request(`/api/markup/annotations/${encodeURIComponent(annotationId)}?media_id=${encodeURIComponent(mediaId)}`, { method: 'DELETE' }),
-  markupRender: (sessionId, mediaId, frameIndex = 0) =>
-    request('/api/markup/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, media_id: mediaId, frame_index: frameIndex }) }),
+  markupRender: (sessionId, mediaId, frameIndex = 0, persist = false) =>
+    request('/api/markup/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, media_id: mediaId, frame_index: frameIndex, persist }),
+    }),
   markupRedact: (sessionId, regions, mode = 'pixelate') =>
     request('/api/markup/redact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, regions, mode }) }),
   markupMeasure: (body) =>
     request('/api/markup/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   markupListMeasurements: (mediaId) =>
     request(`/api/markup/measurements?media_id=${encodeURIComponent(mediaId)}`),
+
+  bookmarksList: (mediaPath) => {
+    const q = mediaPath ? `?media_path=${encodeURIComponent(mediaPath)}` : '';
+    return request(`/api/bookmarks${q}`);
+  },
+  bookmarksAdd: (body) =>
+    request('/api/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  bookmarksUpdate: (bookmarkId, body) =>
+    request(`/api/bookmarks/${encodeURIComponent(bookmarkId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  bookmarksDelete: (bookmarkId) =>
+    request(`/api/bookmarks/${encodeURIComponent(bookmarkId)}`, { method: 'DELETE' }),
 };
 
 export function previewDataUrl(base64) {

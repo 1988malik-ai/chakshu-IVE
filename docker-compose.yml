@@ -1,0 +1,15 @@
+# Run Chakshu on Mac/Linux without local Python/Node installs.
+# Open http://localhost:9450 after: docker compose up --build
+
+services:
+  chakshu:
+    build: .
+    ports:
+      - "9450:9450"
+    volumes:
+      # Mount evidence / export folders from your Mac
+      - ${CHAKSHU_DATA:-./chakshu-data}:/data
+    environment:
+      - AIVE_API_HOST=0.0.0.0
+      - AIVE_API_PORT=9450
+    restart: unless-stopped

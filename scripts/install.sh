@@ -68,8 +68,11 @@ pip install -q -e . --no-deps
 echo "[4/5] Verifying OpenCV..."
 python -c "import cv2; print('      OpenCV', cv2.__version__, 'OK')"
 
-echo "[5/5] Installing cross-platform video support (imageio-ffmpeg)..."
+echo "[5/6] Installing cross-platform video support (imageio-ffmpeg)..."
 pip install -q -r requirements-video.txt
+
+echo "[6/6] Installing report export (PDF/DOCX)..."
+pip install -q -r requirements-reports.txt
 python scripts/check-media-deps.py || echo "      Warning: FFmpeg not ready — see docs/FFMPEG-CROSS-PLATFORM.md"
 
 echo ""

@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from aive.annotations.snap import snap_point
+from aive.annotations.media_id import canonical_media_id, media_id_aliases
 from aive.imaging import HAS_CV2
 
 if HAS_CV2:
@@ -60,36 +61,62 @@ class AnnotationStore:
         self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def add(self, media_id: str, ann: Annotation) -> Annotation:
-        self._items.setdefault(media_id, []).append(ann)
+        key = canonical_media_id(media_id)
+        self._items.setdefault(key, []).append(ann)
         self.save()
         return ann
 
+    def _collect(self, media_id: str) -> list[Annotation]:
+        seen: set[str] = set()
+        out: list[Annotation] = []
+        for key in media_id_aliases(media_id):
+            for ann in self._items.get(key, []):
+                if ann.id in seen:
+                    continue
+                seen.add(ann.id)
+                out.append(ann)
+        return out
+
     def list(self, media_id: str) -> list[Annotation]:
-        return self._items.get(media_id, [])
+        return self._collect(media_id)
 
     def delete(self, media_id: str, annotation_id: str) -> bool:
         self.load()
-        items = self._items.get(media_id, [])
-        new_items = [a for a in items if a.id != annotation_id]
-        if len(new_items) == len(items):
-            return False
-        self._items[media_id] = new_items
-        self.save()
-        return True
+        removed = False
+        for key in media_id_aliases(media_id):
+            items = self._items.get(key, [])
+            new_items = [a for a in items if a.id != annotation_id]
+            if len(new_items) != len(items):
+                self._items[key] = new_items
+                removed = True
+        if removed:
+            self.save()
+        return removed
 
     def list_groups(self, media_id: str) -> list[str]:
         groups = {a.group_id for a in self.list(media_id) if a.group_id}
         return sorted(groups)
 
+    @staticmethod
+    def _scale_points(points: list[list[float]], ann: Annotation, frame_w: int, frame_h: int) -> list[list[float]]:
+        src_w = ann.metadata.get("image_width") or frame_w
+        src_h = ann.metadata.get("image_height") or frame_h
+        if not src_w or not src_h or (src_w == frame_w and src_h == frame_h):
+            return points
+        sx = frame_w / float(src_w)
+        sy = frame_h / float(src_h)
+        return [[p[0] * sx, p[1] * sy] for p in points]
+
     def render_on_frame(self, frame: np.ndarray, media_id: str, frame_index: int) -> np.ndarray:
         if not HAS_CV2:
             return frame
         out = frame.copy()
+        fh, fw = out.shape[:2]
         for ann in self.list(media_id):
             if ann.frame_index != frame_index:
                 continue
             color = ann.color
-            pts = ann.points
+            pts = self._scale_points(ann.points, ann, fw, fh)
             if ann.type == "arrow" and len(pts) >= 2:
                 p1 = (int(pts[0][0]), int(pts[0][1]))
                 p2 = (int(pts[1][0]), int(pts[1][1]))

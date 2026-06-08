@@ -52,6 +52,12 @@
   display: block;
 }
 
+.cap-filtered-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
 .cap-placeholder {
   position: absolute;
   inset: 0;

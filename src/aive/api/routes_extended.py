@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,13 @@ from aive.export.audio import extract_audio, probe_audio_streams
 from aive.export.i_frames import export_i_frames
 from aive.export.media_bundle import MediaExportBundle, export_media_bundle
 from aive.export.pdf_frames import PdfLayoutSettings, export_frames_to_pdf
+from aive.project import examination_notes
+from aive.bookmarks.store import BookmarkStore
+from aive.forensics.case import case_store
 from aive.project.workflow import project_store
 from aive.reports.generator import ReportSettings, generate_report
+
+_bookmark_store = BookmarkStore()
 
 router = APIRouter(prefix="/api", tags=["extended"])
 
@@ -63,10 +69,15 @@ class ReportRequest(BaseModel):
     paper_size: str = "A4"
     orientation: str = "portrait"
     template: str = "standard"
-    title: str = "AI-IVE Processing Report"
+    title: str = ""
     author: str = ""
+    locale: str = "en"
     output_dir: str
-    formats: list[str] = Field(default_factory=lambda: ["html", "pdf"])
+    formats: list[str] = Field(default_factory=lambda: ["html", "pdf", "docx"])
+    include_settings: bool = True
+    include_references: bool = True
+    include_notes: bool = True
+    include_bookmarks: bool = True
 
 
 class ProjectSaveRequest(BaseModel):
@@ -76,6 +87,23 @@ class ProjectSaveRequest(BaseModel):
 
 class ProjectImportRequest(BaseModel):
     path: str
+
+
+class ProjectExportSettingsRequest(BaseModel):
+    """Persist Legal Export paths on the active project."""
+
+    output_dir: str | None = None
+    pdf_path: str | None = None
+    i_frames_dir: str | None = None
+    audio_out: str | None = None
+    input_path: str | None = None
+    use_custom_paths: bool | None = None
+    pdf_page_size: str | None = None
+    pdf_orientation: str | None = None
+    pdf_columns: int | None = None
+    pdf_rows: int | None = None
+    pdf_margin_mm: float | None = None
+    pdf_title: str | None = None
 
 
 @router.post("/export/pdf-frames")
@@ -94,6 +122,19 @@ def api_pdf_frames(body: PdfExportRequest) -> dict[str, Any]:
     )
     result = export_frames_to_pdf(frames, expand_path(body.output_path), layout)
     project_store.current.add_step("export_pdf_frames", settings=body.model_dump())
+    es = project_store.current.export_settings or {}
+    es.update(
+        {
+            "pdf_path": body.output_path,
+            "pdf_page_size": body.page_size,
+            "pdf_orientation": body.orientation,
+            "pdf_columns": body.columns,
+            "pdf_rows": body.rows,
+            "pdf_margin_mm": body.margin_mm,
+            "pdf_title": body.title,
+        }
+    )
+    project_store.current.export_settings = es
     return result
 
 
@@ -148,17 +189,65 @@ def api_i_frames(body: IFrameExportRequest) -> dict[str, Any]:
 
 @router.post("/reports/generate")
 def api_generate_report(body: ReportRequest) -> dict[str, Any]:
+    case = case_store.active_case()
+    case_meta = {
+        "case_id": case.case_id,
+        "case_number": case.case_number,
+        "display_id": case.display_id,
+        "title": case.title,
+        "examiner": case.examiner,
+        "agency": case.agency,
+    }
     settings = ReportSettings(
         paper_size=body.paper_size,
         orientation=body.orientation,
         template=body.template,
         title=body.title,
         author=body.author,
+        locale=body.locale,
         output_formats=body.formats,
+        include_settings=body.include_settings,
+        include_references=body.include_references,
+        include_notes=body.include_notes,
+        include_bookmarks=body.include_bookmarks,
     )
-    result = generate_report(project_store.current, expand_path(body.output_dir), settings)
-    project_store.current.add_step("generate_report", settings=body.model_dump())
+    bookmarks = [_bookmark_store.to_dict(b) for b in _bookmark_store.all()]
+    result = generate_report(
+        project_store.current,
+        expand_path(body.output_dir),
+        settings,
+        case_meta=case_meta,
+        bookmarks=bookmarks,
+    )
+    project_store.current.add_step(
+        "generate_report",
+        settings=body.model_dump(),
+        references=[o["path"] for o in result.get("outputs", [])],
+    )
     return result
+
+
+@router.get("/reports/preview")
+def api_report_preview() -> dict[str, Any]:
+    """Summary for UI before generating."""
+    p = project_store.current
+    return {
+        "project_id": p.project_id,
+        "project_name": p.name,
+        "step_count": len(p.workflow_steps),
+        "pipeline_count": len(p.filter_pipeline),
+        "notes_count": len(p.examination_notes),
+        "bookmark_count": len(_bookmark_store.all()),
+        "recent_steps": [
+            {
+                "action": s.action,
+                "timestamp": s.timestamp,
+                "references": s.references,
+                "settings_keys": list((s.settings or {}).keys()),
+            }
+            for s in p.workflow_steps[-8:]
+        ],
+    }
 
 
 @router.get("/reports/templates")
@@ -174,6 +263,7 @@ def api_report_templates() -> dict[str, Any]:
 @router.post("/project/new")
 def api_project_new(body: ProjectSaveRequest) -> dict[str, Any]:
     proj = project_store.new_project(body.name)
+    proj.examination_notes = []
     return {"project_id": proj.project_id, "name": proj.name}
 
 
@@ -191,6 +281,9 @@ def api_project_import(body: ProjectImportRequest) -> dict[str, Any]:
     if not p.exists():
         raise HTTPException(404, "Project file not found")
     proj = project_store.import_compatible(p)
+    from aive.project import examination_notes as en
+
+    en.hydrate_from_sidecar()
     return {
         "project_id": proj.project_id,
         "name": proj.name,
@@ -200,6 +293,7 @@ def api_project_import(body: ProjectImportRequest) -> dict[str, Any]:
 
 @router.get("/project/current")
 def api_project_current() -> dict[str, Any]:
+    examination_notes.hydrate_from_sidecar()
     p = project_store.current
     return {
         "project_id": p.project_id,
@@ -209,7 +303,19 @@ def api_project_current() -> dict[str, Any]:
             for s in p.workflow_steps
         ],
         "filter_pipeline": p.filter_pipeline,
+        "examination_notes_count": len(p.examination_notes),
+        "export_settings": p.export_settings or {},
     }
+
+
+@router.put("/project/export-settings")
+def api_project_export_settings(body: ProjectExportSettingsRequest) -> dict[str, Any]:
+    """Save Legal Export output paths to the active project (included in .aive.yaml on save)."""
+    p = project_store.current
+    patch = body.model_dump(exclude_none=True)
+    p.export_settings = {**(p.export_settings or {}), **patch}
+    p.updated = datetime.utcnow().isoformat()
+    return {"export_settings": p.export_settings}
 
 
 @router.get("/project/export-yaml")

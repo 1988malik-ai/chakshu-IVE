@@ -12,12 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from aive.analysis.stream import StreamAnalyzer
+from aive.api.examination_payload import examination_preview_fields
 from aive.api.session import sessions
 from aive.bookmarks.store import Bookmark, BookmarkStore
 from aive.export.exporter import ExportOptions, FrameRateMode, VideoExporter
 from aive.filters.catalog import filter_count, list_filters
 from aive.gpu.encode import detect_available_encoders, select_encoder
-from aive.i18n.translations import LOCALES, Translator
 from aive.license.protection import activate_license, check_license, machine_fingerprint
 from aive.api.config import cors_origins, get_api_host, get_api_port
 from aive.subtitles.renderer import SubtitleParser
@@ -27,6 +27,9 @@ from aive.api.routes_capabilities import router as capabilities_router
 from aive.api.routes_timeline import router as timeline_router
 from aive.api.routes_markup import router as markup_router
 from aive.api.routes_capture import router as capture_router
+from aive.api.routes_i18n import router as i18n_router
+from aive.api.routes_ai import router as ai_router
+from aive.api.routes_project_notes import router as project_notes_router
 from aive.brand import PRODUCT_NAME, API_TITLE
 from aive.filters.engine import is_implemented
 from aive.project.workflow import project_store
@@ -42,6 +45,9 @@ app.include_router(capabilities_router)
 app.include_router(timeline_router)
 app.include_router(markup_router)
 app.include_router(capture_router)
+app.include_router(i18n_router)
+app.include_router(ai_router)
+app.include_router(project_notes_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,8 +108,16 @@ class BookmarkCreateRequest(BaseModel):
     frame_index: int | None = 0
     time_sec: float | None = 0.0
     filter_id: str | None = None
+    filter_params: dict[str, Any] = Field(default_factory=dict)
     label: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BookmarkUpdateRequest(BaseModel):
+    label: str | None = None
+    metadata: dict[str, Any] | None = None
+    frame_index: int | None = None
+    time_sec: float | None = None
 
 
 # --- Routes ---
@@ -213,11 +227,6 @@ async def upload_media(
     if session.frame is None:
         raise HTTPException(400, "Failed to decode media (install ffmpeg for video)")
 
-    try:
-        preview = sessions.frame_to_base64_jpeg(session.frame)
-    except Exception as e:
-        raise HTTPException(500, f"Preview encoding failed: {e}") from e
-
     return {
         "session_id": session.id,
         "filename": filename,
@@ -225,12 +234,12 @@ async def upload_media(
         "source_path": session.source_path,
         "media_type": session.media_type,
         "metadata": session.metadata,
-        "preview": preview,
         "width": int(session.frame.shape[1]),
         "height": int(session.frame.shape[0]),
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
         "evidence_id": session.evidence_id,
+        **examination_preview_fields(session),
     }
 
 
@@ -260,9 +269,6 @@ def load_path(body: LoadPathRequest) -> dict[str, Any]:
         session = sessions.load_path(body.session_id, body.path)
     except Exception as e:
         raise HTTPException(400, str(e)) from e
-    preview = None
-    if session.frame is not None:
-        preview = sessions.frame_to_base64_jpeg(session.frame)
     return {
         "session_id": session.id,
         "path": body.path,
@@ -270,9 +276,9 @@ def load_path(body: LoadPathRequest) -> dict[str, Any]:
         "source_path": session.source_path,
         "media_type": session.media_type,
         "metadata": session.metadata,
-        "preview": preview,
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
+        **examination_preview_fields(session),
     }
 
 
@@ -290,10 +296,7 @@ def seek_video(body: SeekVideoRequest) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(400, str(e)) from e
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
-        "time_sec": session.time_sec,
-        "frame_index": session.frame_index,
-        "filter_chain": [f[0] for f in session.filter_chain],
+        **examination_preview_fields(session),
         "can_undo": session.undo.can_undo,
     }
 
@@ -304,10 +307,9 @@ def get_preview(session_id: str) -> dict[str, Any]:
     if not session or session.frame is None:
         raise HTTPException(404, "No preview available")
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
+        **examination_preview_fields(session),
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
-        "filter_chain": [f[0] for f in session.filter_chain],
     }
 
 
@@ -328,10 +330,9 @@ def apply_filter(body: FilterApplyRequest) -> dict[str, Any]:
         references=[body.filter_id],
     )
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
+        **examination_preview_fields(session),
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
-        "filter_chain": [f[0] for f in session.filter_chain],
     }
 
 
@@ -346,11 +347,10 @@ def remove_filter(body: FilterRemoveRequest) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(400, str(e)) from e
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
+        **examination_preview_fields(session),
+        "removed_index": body.index,
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
-        "filter_chain": [f[0] for f in session.filter_chain],
-        "removed_index": body.index,
     }
 
 
@@ -363,7 +363,7 @@ def undo(body: SessionRequest) -> dict[str, Any]:
     if session.frame is None:
         raise HTTPException(400, "No frame")
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
+        **examination_preview_fields(session),
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
     }
@@ -378,7 +378,7 @@ def redo(body: SessionRequest) -> dict[str, Any]:
     if session.frame is None:
         raise HTTPException(400, "No frame")
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
+        **examination_preview_fields(session),
         "can_undo": session.undo.can_undo,
         "can_redo": session.undo.can_redo,
     }
@@ -435,26 +435,16 @@ def frame_types(body: LoadPathRequest) -> dict[str, Any]:
     }
 
 
+def _bookmark_payload(b: Bookmark) -> dict[str, Any]:
+    return _bookmarks.to_dict(b)
+
+
 @app.get("/api/bookmarks")
 def get_bookmarks(media_path: str | None = None) -> dict[str, Any]:
     items = _bookmarks.all()
     if media_path:
         items = _bookmarks.list_for_media(media_path)
-    return {
-        "bookmarks": [
-            {
-                "id": b.id,
-                "media_path": b.media_path,
-                "type": b.bookmark_type,
-                "label": b.label,
-                "frame_index": b.frame_index,
-                "time_sec": b.time_sec,
-                "filter_id": b.filter_id,
-                "metadata": b.metadata,
-            }
-            for b in items
-        ]
-    }
+    return {"count": len(items), "bookmarks": [_bookmark_payload(b) for b in items]}
 
 
 @app.post("/api/bookmarks")
@@ -463,8 +453,10 @@ def add_bookmark(body: BookmarkCreateRequest) -> dict[str, Any]:
         bm = Bookmark.new_filter(
             body.media_path,
             body.filter_id,
+            filter_params=body.filter_params,
             frame_index=body.frame_index,
             label=body.label,
+            time_sec=body.time_sec,
             **body.metadata,
         )
     else:
@@ -476,7 +468,32 @@ def add_bookmark(body: BookmarkCreateRequest) -> dict[str, Any]:
             **body.metadata,
         )
     _bookmarks.add(bm)
-    return {"id": bm.id, "label": bm.label}
+    project_store.current.add_step(
+        f"bookmark_{bm.bookmark_type}",
+        settings=_bookmarks.to_dict(bm),
+    )
+    return {"bookmark": _bookmark_payload(bm)}
+
+
+@app.patch("/api/bookmarks/{bookmark_id}")
+def update_bookmark(bookmark_id: str, body: BookmarkUpdateRequest) -> dict[str, Any]:
+    bm = _bookmarks.update(
+        bookmark_id,
+        label=body.label,
+        metadata=body.metadata,
+        frame_index=body.frame_index,
+        time_sec=body.time_sec,
+    )
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+    return {"bookmark": _bookmark_payload(bm)}
+
+
+@app.delete("/api/bookmarks/{bookmark_id}")
+def delete_bookmark(bookmark_id: str) -> dict[str, Any]:
+    if not _bookmarks.remove(bookmark_id):
+        raise HTTPException(404, "Bookmark not found")
+    return {"deleted": bookmark_id}
 
 
 @app.post("/api/export")
@@ -497,31 +514,50 @@ def export_video(body: ExportRequest) -> dict[str, Any]:
     return _exporter.export(inp, opts)
 
 
-@app.get("/api/i18n/{locale}")
-def i18n_strings(locale: str) -> dict[str, Any]:
-    if locale not in LOCALES:
-        locale = "en"
-    tr = Translator(locale)
-    keys = [
-        "app.title",
-        "menu.file",
-        "menu.edit",
-        "action.open",
-        "action.export",
-        "action.undo",
-        "action.redo",
-        "filter.browser",
-    ]
-    return {"locale": locale, "strings": {k: tr.tr(k) for k in keys}}
-
-
 @app.post("/api/subtitles/parse")
 def parse_subtitles(path: str) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         raise HTTPException(404, "File not found")
+    from aive.subtitles.renderer import cues_to_dicts
+
     cues = SubtitleParser.load(p)
-    return {"count": len(cues), "cues": [{"start": c.start_sec, "end": c.end_sec, "text": c.text} for c in cues[:100]]}
+    return {
+        "path": str(p),
+        "format": SubtitleParser.detect_format(p),
+        "count": len(cues),
+        "cues": cues_to_dicts(cues, 100),
+    }
+
+
+@app.post("/api/subtitles/upload")
+async def upload_subtitle(
+    file: UploadFile = File(...),
+    session_id: str = Query(default=""),
+) -> dict[str, Any]:
+    """Upload subtitle file (SRT/SMI) and return server path for rendering/burn."""
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Empty subtitle file")
+
+    filename = file.filename or "captions.srt"
+    ext = Path(filename).suffix.lower()
+    if ext not in {".srt", ".smi"}:
+        raise HTTPException(400, "Only .srt or .smi subtitle files are supported")
+
+    sid = session_id or "global"
+    sub_dir = Path.home() / ".ai-ive" / "subtitles" / sid
+    sub_dir.mkdir(parents=True, exist_ok=True)
+    dest = sub_dir / Path(filename).name
+    dest.write_bytes(data)
+
+    cues = SubtitleParser.load(dest)
+    return {
+        "path": str(dest),
+        "filename": Path(filename).name,
+        "format": SubtitleParser.detect_format(dest),
+        "count": len(cues),
+    }
 
 
 def mount_frontend(dist_dir: Path) -> None:

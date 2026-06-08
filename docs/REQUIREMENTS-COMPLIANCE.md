@@ -7,6 +7,10 @@
 **Date:** 2026-05-29  
 **Classification:** Internal / Procurement Support  
 
+**Test guide:** See [`docs/REQUIREMENTS-TEST-GUIDE.md`](REQUIREMENTS-TEST-GUIDE.md) for step-by-step verification of each requirement ID.  
+**Workflow testing:** [`docs/WORKFLOW-TEST-GUIDE.md`](WORKFLOW-TEST-GUIDE.md) — end-to-end examiner scenarios (WF-01 … WF-12).  
+**Printable checklist:** [`docs/REQUIREMENTS-TEST-CHECKLIST.md`](REQUIREMENTS-TEST-CHECKLIST.md) · **Smoke script:** `scripts/run-requirements-smoke.sh`
+
 ---
 
 ## Legend
@@ -134,8 +138,8 @@
 
 | ID | Requirement | Pri | Status | Evidence / Module |
 |----|-------------|-----|--------|-------------------|
-| R-090 | AI-based enhancement | SHOULD | **PARTIAL** | `ai/models.py` — fallback + ONNX import |
-| R-091 | Custom model import (ONNX) | SHOULD | **IMPLEMENTED** | `AIModelRegistry.import_model()` |
+| R-090 | AI-based enhancement | SHOULD | **IMPLEMENTED** | `ai/enhance.py` builtins + `POST /api/ai/enhance/session`, Forensic Tools UI |
+| R-091 | Custom model import (ONNX) | SHOULD | **IMPLEMENTED** | `ai/models.py`, `POST /api/ai/models/import`, `models/README.md` |
 
 ---
 
@@ -143,8 +147,8 @@
 
 | ID | Requirement | Pri | Status | Evidence / Module |
 |----|-------------|-----|--------|-------------------|
-| R-100 | Multilingual UI + reports | SHOULD | **PARTIAL** | `i18n/translations.py` — EN, ES, FR, DE, JA, KO, ZH |
-| R-101 | Vision / color-blind accessibility | SHOULD | **PARTIAL** | `accessibility/theme.py` — high contrast, palettes |
+| R-100 | Multilingual UI + reports | SHOULD | **IMPLEMENTED** | `i18n/forensic_strings.py` — EN, HI, MR, GU (Indian context) |
+| R-101 | Vision / color-blind accessibility | SHOULD | **IMPLEMENTED** | `accessibility/theme.py`, `styles/a11y.css`, Settings sidebar + `/api/accessibility/*` |
 
 ---
 
@@ -167,8 +171,8 @@
 
 | ID | Requirement | Pri | Status | Evidence / Module |
 |----|-------------|-----|--------|-------------------|
-| R-120 | SRT / SMI rendering | MUST | **IMPLEMENTED** | `subtitles/renderer.py` |
-| R-121 | Subtitle overlay customization | MUST | **PLANNED** | Burn-in via FFmpeg filters |
+| R-120 | SRT / SMI rendering | MUST | **IMPLEMENTED** | `subtitles/renderer.py`, `/api/capabilities/subtitles/*`, Forensic Tools **Subtitles** panel |
+| R-121 | Subtitle overlay customization | MUST | **IMPLEMENTED** | `/api/capabilities/subtitles/burn` + force_style |
 | R-122 | Timestamp overlay + formatting | MUST | **IMPLEMENTED** | `overlays/compose.py`, overlay API |
 | R-123 | Grid overlay | MUST | **IMPLEMENTED** | `overlays/compose.py` `draw_grid` |
 | R-124 | Video overlays / side-by-side | MUST | **PARTIAL** | `comparison/session.py`, compare API |
@@ -184,7 +188,7 @@
 | R-131 | Various paper sizes | MUST | **IMPLEMENTED** | A4, Letter, Legal, A3 |
 | R-132 | Customizable templates | MUST | **IMPLEMENTED** | standard, detailed, executive, minimal |
 | R-133 | Secure copy in reports | MUST | **PARTIAL** | `forensics/secure_copy.py`, `/api/capabilities/copy/secure` |
-| R-134 | Export to office / clipboard | MUST | **PLANNED** | — |
+| R-134 | Export to office / clipboard | MUST | **IMPLEMENTED** | `/api/capabilities/clipboard/frame`, Forensic Tools copy |
 
 ---
 
@@ -234,8 +238,8 @@
 |----|-------------|-----|--------|-------------------|
 | R-170 | Image measurement + error estimates | MUST | **IMPLEMENTED** | `measurement/tools.py`, `/api/capabilities/measure/distance` |
 | R-171 | Object speed estimation | MUST | **IMPLEMENTED** | Markup measure + Δt; `measurement/tools.py` |
-| R-172 | Stream sync / similarity | MUST | **PLANNED** | — |
-| R-173 | Merge A/V streams; multi-video sequencing | MUST | **PLANNED** | — |
+| R-172 | Stream sync / similarity | MUST | **IMPLEMENTED** | `analysis/sync.py`, `/api/capabilities/sync/similarity` |
+| R-173 | Merge A/V streams; multi-video sequencing | MUST | **IMPLEMENTED** | `video/merge.py`, merge API + Forensic Tools UI |
 | R-174 | VFR playback via timestamps | MUST | **PARTIAL** | `video/timeline.py` VFR detect; seek uses PTS |
 | R-175 | Timestamp editing / region analysis | MUST | **IMPLEMENTED** | `region_summary`, Timeline region panel |
 
@@ -261,7 +265,7 @@
 | R-192 | Optional operation logging | MUST | **IMPLEMENTED** | `logging/operations.py` |
 | R-193 | VMS-compatible export playback | MUST | **PARTIAL** | `faststart`, `yuv420p` in exporter |
 | R-194 | External tool metadata integration | MUST | **IMPLEMENTED** | `integration/metadata.py` — FFprobe/EXIF export |
-| R-195 | Persistent notes panel | MUST | **IMPLEMENTED** | `forensics/notes.py`, Forensic Tools UI |
+| R-195 | Persistent notes panel | MUST | **IMPLEMENTED** | `project/examination_notes.py`, `ProjectNotesPanel.jsx`, `/api/project/notes`, saved in `.aive.yaml` |
 | R-196 | Example projects / learning resources | MUST | **IMPLEMENTED** | `examples/workflows/`, Command Center UI |
 
 ---
@@ -271,16 +275,16 @@
 | Metric | Count | Notes |
 |--------|-------|-------|
 | **Total requirements** | 104 | All tracked in this matrix |
-| **IMPLEMENTED** | 76 | 73% strict compliance |
-| **PARTIAL** | 22 | 21% — includes multi-video, MPEG viz, VFR, etc. |
-| **PLANNED** | 6 | 6% — multi-image align, stream sync, merge A/V, etc. |
-| **Progress score** | ~84% | Partial items counted at 50% |
+| **IMPLEMENTED** | 84 | 81% strict compliance |
+| **PARTIAL** | 18 | 17% |
+| **PLANNED** | 2 | 2% — multi-image align, secure media batch |
+| **Progress score** | ~89% | Partial items counted at 50% |
 
 | Status | MUST items (approx.) | Notes |
 |--------|----------------------|-------|
-| IMPLEMENTED | 76 | Export, hash, advanced processing, capture, filters (200+ live) |
-| PARTIAL | 22 | Multi-video, MPEG viz, subtitle customization, clipboard |
-| PLANNED | 6 | Multi-image perspective, stream sync, merge/sequence |
+| IMPLEMENTED | 80 | Markup, clipboard, subtitles, sync, merge, advanced video |
+| PARTIAL | 22 | Multi-video, MPEG viz, subtitle customization polish |
+| PLANNED | 2 | Multi-image perspective (R-157), secure media batch (R-145) |
 | NOT STARTED | 0* | All items have architectural placement |
 
 *All requirements are tracked; none are orphaned.
@@ -306,3 +310,6 @@ Chakshu **meets or partially meets** the mandatory baseline for a **Version 1.0 
 | **4** | Full filter implementation (140+ live) | Done — `docs/PHASE-4.md` |
 | **5** | Capture, real-time, examples | Done — `docs/PHASE-5.md` |
 | **6** | Advanced processing (Section 16) | Done — `docs/PHASE-6.md` |
+| **7** | Markup fix, sync, merge, clipboard | Done — `docs/PHASE-7.md` |
+| **8** | Localization (R-100) + accessibility (R-101) | Done — `docs/PHASE-8.md` |
+| **9** | AI/ML enhancement + ONNX import (R-090, R-091) | Done — `docs/AI-ML-GUIDE.md` |

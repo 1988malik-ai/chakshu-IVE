@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from aive.annotations.store import Annotation, annotation_store, snap_points
+from aive.annotations.media_id import canonical_media_id
 from aive.api.session import sessions
 from aive.forensics.audit import audit_log
 from aive.forensics.case import case_store
@@ -38,6 +39,7 @@ class RenderBody(BaseModel):
     media_id: str
     frame_index: int = 0
     include_annotations: bool = True
+    persist: bool = False
 
 
 class RedactBody(BaseModel):
@@ -98,8 +100,13 @@ def add_annotation(body: AnnotationBody) -> dict[str, Any]:
         text=body.text,
         color=tuple(body.color[:3]),
         group_id=body.group_id,
+        metadata={
+            "image_width": body.image_width,
+            "image_height": body.image_height,
+        },
     )
-    annotation_store.add(body.media_id, ann)
+    media_key = canonical_media_id(body.media_id)
+    annotation_store.add(media_key, ann)
     case = case_store.active_case()
     audit_log.record(case.case_id, "ANNOTATION_ADD", "examiner", type=body.type, media_id=body.media_id)
     return {"annotation": ann.__dict__}
@@ -129,9 +136,12 @@ def render_markup(body: RenderBody) -> dict[str, Any]:
     frame = session.frame.copy()
     if body.include_annotations:
         annotation_store.load()
-        frame = annotation_store.render_on_frame(frame, body.media_id, body.frame_index)
+        media_key = canonical_media_id(body.media_id)
+        frame = annotation_store.render_on_frame(frame, media_key, body.frame_index)
     session.frame = frame
-    return {"preview": sessions.frame_to_base64_jpeg(frame)}
+    if body.persist and session.master_frame is not None:
+        session.master_frame = frame.copy()
+    return {"preview": sessions.frame_to_base64_jpeg(frame), "persisted": body.persist}
 
 
 @router.post("/redact")
@@ -179,13 +189,19 @@ def measure_and_save(body: MeasureDrawBody) -> dict[str, Any]:
         points=[p1, p2],
         text=label,
         group_id=body.group_id,
-        metadata={"distance_label": label, **result},
+        metadata={
+            "distance_label": label,
+            "image_width": body.image_width,
+            "image_height": body.image_height,
+            **result,
+        },
     )
     annotation_store.load()
-    annotation_store.add(body.media_id, ann)
-    measurement_store.add(body.media_id, body.frame_index, p1, p2, result, label=label)
+    media_key = canonical_media_id(body.media_id)
+    annotation_store.add(media_key, ann)
+    measurement_store.add(media_key, body.frame_index, p1, p2, result, label=label)
 
-    frame = annotation_store.render_on_frame(session.frame, body.media_id, body.frame_index)
+    frame = annotation_store.render_on_frame(session.frame, media_key, body.frame_index)
     session.frame = frame
     return {"preview": sessions.frame_to_base64_jpeg(frame), "measurement": result, "annotation": ann.__dict__}
 

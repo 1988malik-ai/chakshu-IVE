@@ -70,9 +70,14 @@ def _clahe_l(frame: np.ndarray, clip: float = 2.0) -> np.ndarray:
     return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
 
-def _ai_enhance(frame: np.ndarray) -> np.ndarray:
-    out = cv2.fastNlMeansDenoisedColored(frame, None, 5, 5, 7, 21)
-    return _unsharp(_clahe_l(out, 2.5), 0.35)
+def _ai_enhance(frame: np.ndarray, p: dict[str, Any] | None = None) -> np.ndarray:
+    try:
+        from aive.ai.enhance import run_ai_tool
+
+        return run_ai_tool(frame, p)
+    except Exception:
+        out = cv2.fastNlMeansDenoisedColored(frame, None, 5, 5, 7, 21)
+        return _unsharp(_clahe_l(out, 2.5), 0.35)
 
 
 def _apply_color(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | None:
@@ -611,16 +616,16 @@ def _apply_both(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | 
         adv = apply_advanced_filter(frame, fid, p)
         if adv is not None:
             return adv
-        return _ai_enhance(frame)
+        return _ai_enhance(frame, p)
     if fid.startswith("both_histogram_match"):
         mean, std = frame.mean(), max(frame.std(), 1.0)
         return _clip_u8((frame.astype(np.float32) - mean) / std * 50.0 + 128.0)
     if fid.startswith("both_style_transfer"):
         if hasattr(cv2, "stylization"):
             return cv2.stylization(frame)
-        return _ai_enhance(frame)
+        return _ai_enhance(frame, p)
     if fid in ("both_normalize", "both_auto_contrast", "both_auto_levels", "both_color_correct"):
-        return _apply_color(frame, fid.replace("both_", "clr_"), p) or _ai_enhance(frame)
+        return _apply_color(frame, fid.replace("both_", "clr_"), p) or _ai_enhance(frame, p)
     if fid in ("both_blur", "both_sharpen", "both_denoise", "both_vignette", "both_film_grain", "both_glow"):
         mapped = fid.replace("both_", "clr_") if fid == "both_normalize" else fid.replace("both_", "blr_" if "blur" in fid else "shp_" if "sharp" in fid else "ns_" if "denoise" in fid else "sty_")
         for handler in (_apply_blur_sharpen, _apply_noise, _apply_stylize, _apply_color):
@@ -683,4 +688,4 @@ def apply_catalog_filter(frame: np.ndarray, filter_id: str, params: dict[str, An
         if alias:
             return apply_catalog_filter(frame, alias, p)
 
-    return _ai_enhance(frame)
+    return _ai_enhance(frame, p)

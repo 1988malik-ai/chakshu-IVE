@@ -1,0 +1,120 @@
+.fx-reports-panel {
+  max-width: 720px;
+}
+
+.fx-reports-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 0.72rem;
+  color: var(--fx-muted);
+  font-family: var(--fx-mono);
+}
+
+.fx-reports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fx-reports-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fx-reports-span2 {
+  grid-column: 1 / -1;
+}
+
+.fx-reports-formats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.fx-reports-label {
+  font-size: 0.65rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: 100%;
+}
+
+.fx-reports-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--fx-text);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.fx-reports-check input {
+  accent-color: var(--fx-accent);
+}
+
+.fx-reports-preview-steps {
+  margin: 12px 0;
+  padding: 10px;
+  background: var(--fx-panel-2);
+  border: 1px solid var(--fx-border);
+  border-radius: 6px;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.fx-reports-preview-steps ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 0.72rem;
+}
+
+.fx-reports-preview-steps code {
+  font-family: var(--fx-mono);
+  color: var(--fx-accent-2);
+}
+
+.fx-reports-output-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 1px solid var(--fx-border);
+  border-radius: 6px;
+}
+
+.fx-reports-output-list li {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fx-border);
+  font-size: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.fx-reports-output-list li:last-child {
+  border-bottom: none;
+}
+
+.fx-reports-output-list code {
+  font-family: var(--fx-mono);
+  font-size: 0.68rem;
+  color: var(--fx-muted);
+  word-break: break-all;
+}
+
+.fx-reports-note {
+  font-size: 0.65rem;
+  color: var(--fx-warn);
+}

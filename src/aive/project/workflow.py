@@ -39,6 +39,7 @@ class AiveProject:
     export_settings: dict[str, Any] = field(default_factory=dict)
     report_template: str = "standard"
     metadata: dict[str, Any] = field(default_factory=dict)
+    examination_notes: list[dict[str, Any]] = field(default_factory=list)
 
     def add_step(self, action: str, settings: dict | None = None, references: list | None = None) -> None:
         self.workflow_steps.append(
@@ -66,6 +67,7 @@ class AiveProject:
                 "export_settings": self.export_settings,
                 "report_template": self.report_template,
                 "metadata": self.metadata,
+                "examination_notes": self.examination_notes,
             }
         }
         return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
@@ -88,6 +90,7 @@ class AiveProject:
             export_settings=root.get("export_settings", {}),
             report_template=root.get("report_template", "standard"),
             metadata=root.get("metadata", {}),
+            examination_notes=root.get("examination_notes", []),
         )
 
     def save(self, path: Path) -> Path:
@@ -118,6 +121,9 @@ class ProjectStore:
             self._current = _import_json_compatible(text)
         else:
             self._current = AiveProject.from_yaml(text)
+        from aive.project import examination_notes as en
+
+        en.hydrate_from_sidecar()
         return self._current
 
     def save_current(self, path: Path | None = None) -> Path:
@@ -145,6 +151,7 @@ def _import_json_compatible(text: str) -> AiveProject:
         )
     proj.media = raw.get("media", raw.get("assets", []))
     proj.filter_pipeline = raw.get("filter_pipeline", raw.get("filters", []))
+    proj.examination_notes = raw.get("examination_notes", raw.get("notes", []))
     proj.metadata["imported_from"] = "compatible_json"
     return proj
 

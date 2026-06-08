@@ -1,17 +1,17 @@
-# AI-IVE Desktop (Electron → Windows .exe)
+# Chakshu Desktop (Electron → Windows installer)
 
-Electron loads the **React** app and runs the **Python API** as a subprocess (production) or connects to dev servers (development).
+Electron opens a native window; the **Python API** runs as a bundled subprocess with the **React UI** served locally.
 
 ## Development
 
-**Terminal 1** — API + React:
+**Terminal 1** — API + React (macOS/Linux):
 
 ```bash
 cd ~/Desktop/AI-IVE
 ./scripts/dev.sh
 ```
 
-**Terminal 2** — Electron window:
+**Terminal 2** — Electron:
 
 ```bash
 cd desktop
@@ -19,32 +19,36 @@ npm install
 npm start
 ```
 
-Electron opens http://localhost:9451 and exposes `window.aiveDesktop.openFile()` for native file pickers.
+On **Windows**, use `.\scripts\install.ps1` then the same terminals with PowerShell paths (see [`docs/WINDOWS-INSTALL.md`](../docs/WINDOWS-INSTALL.md)).
 
 ## Production build (Windows)
 
-Prerequisites: Node.js, Python venv with deps, FFmpeg on target machines.
+**Easiest:** double-click `Build-Chakshu.bat` in the project root.
+
+Or:
 
 ```powershell
-cd $env:USERPROFILE\Desktop\AI-IVE
 .\scripts\build_windows.ps1
 ```
 
-Output: `desktop\dist\AI-IVE-Setup-1.0.0.exe`
+Output: `desktop\dist\Chakshu-Setup-1.0.0.exe`
+
+Full guide: [`docs/WINDOWS-INSTALL.md`](../docs/WINDOWS-INSTALL.md)
 
 ### What gets packaged
 
-1. `frontend/dist` — built React static files  
-2. `dist-backend/aive-api.exe` — PyInstaller bundle of FastAPI + OpenCV + core  
-3. Electron shell — native window, file dialogs  
+1. `dist-backend/aive-api.exe` — PyInstaller bundle (FastAPI, OpenCV, FFmpeg)
+2. `dist-backend/frontend-dist/` — built React app
+3. Electron shell — NSIS installer, Start Menu + desktop shortcut
 
-## Alternative: API-only desktop
+## Alternative: API-only (no Electron)
 
-Serve React from Python (single process, no Electron):
+Smaller artifact; user opens a browser:
 
-```bash
-cd frontend && npm run build
-aive-api --frontend-dist ./frontend/dist
+```powershell
+.\scripts\build_windows.ps1 -ApiOnly
+cd dist-backend
+.\aive-api.exe --frontend-dist .\frontend-dist
 ```
 
-Open http://127.0.0.1:9450 — suitable for PyInstaller-only `.exe` with embedded UI.
+Open http://127.0.0.1:9450

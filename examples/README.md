@@ -18,12 +18,14 @@ cd frontend && npm run dev         # UI :9451
 
 ## Workflows
 
-| Example | File | Description |
-|---------|------|-------------|
-| Image enhancement | `workflows/image-enhancement.yaml` | Load → CLAHE → sharpen → export |
-| Video timeline | `workflows/video-timeline.yaml` | Deep index → I-frame step → region analysis |
-| Live capture | `workflows/live-capture.yaml` | Webcam snap → ingest → markup |
-| Hash & custody | `workflows/hash-custody.yaml` | Secure copy → multi-hash → custody log |
+| Example | File | Test workflow |
+|---------|------|---------------|
+| Image enhancement | `workflows/image-enhancement.yaml` | **WF-02** in [`docs/WORKFLOW-TEST-GUIDE.md`](../docs/WORKFLOW-TEST-GUIDE.md) |
+| Video timeline | `workflows/video-timeline.yaml` | **WF-03** |
+| Live capture | `workflows/live-capture.yaml` | **WF-07** |
+| Hash & custody | `workflows/hash-custody.yaml` | **WF-05** |
+
+Full workflow test guide: [`docs/WORKFLOW-TEST-GUIDE.md`](../docs/WORKFLOW-TEST-GUIDE.md)
 
 ## Author
 

@@ -18,20 +18,27 @@ function getBackendCommand() {
       env: { ...process.env, PYTHONPATH: path.join(__dirname, '..', 'src') },
     };
   }
+  const backendDir = path.join(process.resourcesPath, 'backend');
   const backendExe =
     process.platform === 'win32'
-      ? path.join(process.resourcesPath, 'backend', 'aive-api.exe')
-      : path.join(process.resourcesPath, 'backend', 'aive-api');
-  return { cmd: backendExe, args: [], cwd: path.dirname(backendExe), env: process.env };
+      ? path.join(backendDir, 'aive-api.exe')
+      : path.join(backendDir, 'aive-api');
+  const frontendDist = path.join(backendDir, 'frontend-dist');
+  const args = ['--host', '127.0.0.1', '--port', String(API_PORT)];
+  if (require('fs').existsSync(frontendDist)) {
+    args.push('--frontend-dist', frontendDist);
+  }
+  return {
+    cmd: backendExe,
+    args,
+    cwd: backendDir,
+    env: { ...process.env, AIVE_FRONTEND_DIST: frontendDist },
+  };
 }
 
 function startBackend() {
   return new Promise((resolve, reject) => {
     const { cmd, args, cwd, env } = getBackendCommand();
-    const dist = isDev ? null : path.join(process.resourcesPath, 'frontend', 'dist');
-    if (dist) {
-      env.AIVE_FRONTEND_DIST = dist;
-    }
 
     backendProcess = spawn(cmd, args, { cwd, env, stdio: 'inherit' });
 

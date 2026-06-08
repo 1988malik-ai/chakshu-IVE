@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from aive.analysis.stream import StreamAnalyzer
+from aive.api.examination_payload import examination_preview_fields
 from aive.api.session import sessions
 from aive.filters.engine import is_implemented
 from aive.filters.forensic import FORENSIC_FILTER_IDS
@@ -21,10 +22,23 @@ _analyzer = StreamAnalyzer()
 
 
 class CreateCaseRequest(BaseModel):
-    case_number: str
-    title: str
-    examiner: str
+    case_number: str = ""
+    title: str = "New Examination"
+    examiner: str = "Examiner"
     agency: str = ""
+
+
+def _case_summary(c) -> dict[str, Any]:
+    return {
+        "case_id": c.case_id,
+        "case_number": c.case_number,
+        "display_id": c.display_id,
+        "title": c.title,
+        "examiner": c.examiner,
+        "agency": c.agency,
+        "status": c.status,
+        "created": c.created,
+    }
 
 
 class IngestRequest(BaseModel):
@@ -58,11 +72,7 @@ def list_cases() -> dict[str, Any]:
     return {
         "cases": [
             {
-                "case_id": c.case_id,
-                "case_number": c.case_number,
-                "title": c.title,
-                "examiner": c.examiner,
-                "status": c.status,
+                **_case_summary(c),
                 "evidence_count": len(c.evidence),
             }
             for c in cases
@@ -74,17 +84,14 @@ def list_cases() -> dict[str, Any]:
 def create_case(body: CreateCaseRequest) -> dict[str, Any]:
     c = case_store.create_case(body.case_number, body.title, body.examiner, body.agency)
     audit_log.record(c.case_id, "CASE_CREATE", body.examiner, case_number=body.case_number)
-    return {"case_id": c.case_id, "case_number": c.case_number}
+    return {**_case_summary(c), "evidence_count": len(c.evidence)}
 
 
 @router.get("/cases/active")
 def active_case() -> dict[str, Any]:
     c = case_store.active_case()
     return {
-        "case_id": c.case_id,
-        "case_number": c.case_number,
-        "title": c.title,
-        "examiner": c.examiner,
+        **_case_summary(c),
         "evidence": [
             {
                 "evidence_id": e.evidence_id,
@@ -160,8 +167,7 @@ def examination_apply_filter(body: ApplyFilterRequest) -> dict[str, Any]:
     project_store.current.filter_pipeline.append({"filter_id": body.filter_id, "params": body.params})
 
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
-        "filter_chain": [f[0] for f in session.filter_chain],
+        **examination_preview_fields(session),
         "implemented": is_implemented(body.filter_id),
         "can_undo": session.undo.can_undo,
     }
@@ -174,7 +180,16 @@ class ResetRequest(BaseModel):
 @router.post("/examination/reset")
 def examination_reset(body: ResetRequest) -> dict[str, Any]:
     session = sessions.reset_enhancement(body.session_id)
-    return {"preview": sessions.frame_to_base64_jpeg(session.frame), "filter_chain": []}
+    return examination_preview_fields(session)
+
+
+@router.get("/examination/preview")
+def examination_preview(session_id: str) -> dict[str, Any]:
+    """Current session frame + pipeline — sync UI when returning to Examination Lab."""
+    session = sessions.get(session_id)
+    if not session or session.frame is None:
+        raise HTTPException(400, "No frame loaded in session")
+    return examination_preview_fields(session)
 
 
 class RemoveFilterRequest(BaseModel):
@@ -217,8 +232,7 @@ def examination_remove_filter(body: RemoveFilterRequest) -> dict[str, Any]:
     )
 
     return {
-        "preview": sessions.frame_to_base64_jpeg(session.frame),
-        "filter_chain": [f[0] for f in session.filter_chain],
+        **examination_preview_fields(session),
         "removed_index": body.index,
         "removed_filter_id": removed_id,
         "can_undo": session.undo.can_undo,

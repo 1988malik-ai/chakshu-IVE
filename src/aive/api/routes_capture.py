@@ -6,17 +6,17 @@ import base64
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from aive.api.session import sessions
 from aive.capture.devices import list_capture_devices, save_capture_sequence
-from aive.capture.realtime import get_live_session, stop_live_session
+from aive.capture.realtime import get_live_session, stop_all_live_sessions
 from aive.capture.screen import capture_screen
 from aive.capture.sequence_video import images_to_video
 from aive.examples.store import list_examples, load_example
-from aive.imaging import HAS_CV2
+from aive.imaging import HAS_CV2, bgr_from_bytes, bgr_to_jpeg_base64
 
 router = APIRouter(prefix="/api/capture", tags=["capture"])
 
@@ -25,6 +25,11 @@ class SnapshotIngestBody(BaseModel):
     session_id: str
     preview_base64: str
     filename: str = "live-capture.jpg"
+
+
+class ProcessFrameBody(BaseModel):
+    filter_id: str
+    preview_base64: str
 
 
 class ScreenCaptureBody(BaseModel):
@@ -52,32 +57,74 @@ def capture_devices() -> dict[str, Any]:
 
 
 @router.get("/stream/mjpeg")
-def mjpeg_stream(
+async def mjpeg_stream(
+    request: Request,
     device: int = Query(0),
     filter_id: str | None = Query(None),
     fps: float = Query(15.0, ge=1, le=30),
 ) -> StreamingResponse:
     if not HAS_CV2:
         raise HTTPException(503, "OpenCV required for device streaming")
-    sess = get_live_session("default", device, filter_id)
+    sess = get_live_session(device, filter_id)
     if not sess.open():
         raise HTTPException(503, f"Cannot open capture device {device}")
+
+    async def generate():
+        async for chunk in sess.async_mjpeg_stream(fps=fps, disconnected=request.is_disconnected):
+            yield chunk
+
     return StreamingResponse(
-        sess.mjpeg_stream(fps=fps),
+        generate(),
         media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache, no-store", "Connection": "keep-alive"},
     )
 
 
 @router.post("/stream/stop")
-def stop_stream(session_key: str = "default") -> dict[str, str]:
-    stop_live_session(session_key)
+def stop_stream(device: int | None = None) -> dict[str, str]:
+    if device is not None:
+        from aive.capture.realtime import release_device_sessions
+
+        release_device_sessions(device)
+    else:
+        stop_all_live_sessions()
     return {"status": "stopped"}
 
 
 @router.get("/snapshot")
 def snapshot(device: int = 0, filter_id: str | None = None) -> dict[str, Any]:
-    sess = get_live_session("snap", device, filter_id)
-    return sess.snapshot()
+    from aive.capture.realtime import release_device_sessions
+
+    sess = get_live_session(device, filter_id)
+    try:
+        return sess.snapshot()
+    finally:
+        release_device_sessions(device)
+
+
+@router.post("/process-frame")
+def process_frame(body: ProcessFrameBody) -> dict[str, Any]:
+    """Apply a catalog filter to a single JPEG frame (browser webcam live preview)."""
+    if not body.filter_id:
+        raise HTTPException(400, "filter_id required")
+    raw = body.preview_base64
+    if "," in raw:
+        raw = raw.split(",", 1)[1]
+    try:
+        data = base64.b64decode(raw)
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid base64: {exc}") from exc
+    try:
+        frame = bgr_from_bytes(data, "frame.jpg")
+    except Exception as exc:
+        raise HTTPException(400, f"Could not decode frame: {exc}") from exc
+    from aive.filters.forensic_ops import apply_catalog_filter
+
+    try:
+        out = apply_catalog_filter(frame, body.filter_id, {})
+    except Exception as exc:
+        raise HTTPException(400, f"Filter failed: {exc}") from exc
+    return {"preview": bgr_to_jpeg_base64(out), "filter_id": body.filter_id}
 
 
 @router.post("/ingest")

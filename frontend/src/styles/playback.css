@@ -1,0 +1,52 @@
+.fx-playback-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--fx-panel-2);
+  border: 1px solid var(--fx-border);
+  border-radius: 6px;
+}
+
+.fx-playback-compact {
+  margin-top: 6px;
+  padding: 6px 8px;
+}
+
+.fx-playback-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.fx-playback-speed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--fx-muted);
+}
+
+.fx-playback-speed select {
+  background: var(--fx-bg);
+  color: var(--fx-text);
+  border: 1px solid var(--fx-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+}
+
+.fx-playback-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fx-warn);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
