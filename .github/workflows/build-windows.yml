@@ -51,9 +51,14 @@ jobs:
       - name: Stage backend bundle
         shell: pwsh
         run: |
+          if (-not (Test-Path frontend/dist/index.html)) { throw "frontend/dist/index.html missing" }
           New-Item -ItemType Directory -Force -Path dist-backend | Out-Null
           Copy-Item dist/aive-api.exe dist-backend/
           Copy-Item -Recurse frontend/dist dist-backend/frontend-dist
+          if (-not (Test-Path dist-backend/frontend-dist/index.html)) { throw "dist-backend UI copy failed" }
+
+      - name: Verify UI inside aive-api.exe
+        run: python scripts/verify_bundled_ui.py dist/aive-api.exe
 
       - name: Portable zip (extract and run)
         shell: pwsh

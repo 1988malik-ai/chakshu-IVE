@@ -33,16 +33,13 @@ function getBackendCommand() {
   if (!fs.existsSync(backendExe)) {
     throw new Error(`Backend missing: ${backendExe}`);
   }
+  // UI is bundled inside aive-api.exe - do not override with external paths
   const args = ['--host', '127.0.0.1', '--port', String(API_PORT)];
-  // UI is bundled inside aive-api.exe; external frontend-dist is optional fallback
-  if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
-    args.push('--frontend-dist', frontendDist);
-  }
   return {
     cmd: backendExe,
     args,
     cwd: backendDir,
-    env: { ...process.env, AIVE_FRONTEND_DIST: frontendDist },
+    env: process.env,
   };
 }
 

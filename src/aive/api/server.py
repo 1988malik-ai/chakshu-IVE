@@ -123,6 +123,9 @@ class BookmarkUpdateRequest(BaseModel):
 # --- Routes ---
 
 
+_FRONTEND_DIST: Path | None = None
+
+
 @app.get("/api/health")
 def health() -> dict[str, Any]:
     from aive.codecs.ffmpeg_bin import media_tools_status
@@ -138,6 +141,8 @@ def health() -> dict[str, Any]:
         "ffprobe": media["ffprobe"],
         "ffmpeg_path": media.get("ffmpeg_path"),
         "ffmpeg_source": media.get("source"),
+        "ui_ready": _FRONTEND_DIST is not None,
+        "ui_path": str(_FRONTEND_DIST) if _FRONTEND_DIST else None,
     }
 
 
@@ -561,9 +566,11 @@ async def upload_subtitle(
 
 
 def mount_frontend(dist_dir: Path) -> None:
+    global _FRONTEND_DIST
     index = dist_dir / "index.html"
     if dist_dir.is_dir() and index.is_file():
-        app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="static")
+        _FRONTEND_DIST = dist_dir.resolve()
+        app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="static")
     else:
         import logging
 
