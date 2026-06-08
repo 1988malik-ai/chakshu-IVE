@@ -29,7 +29,7 @@ Copy-Item -Recurse $dist (Join-Path $outDir "frontend-dist")
 @echo off
 title Chakshu Forensics
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_portable.ps1" -AppDir "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_portable.ps1"
 if errorlevel 1 pause
 '@ | Set-Content -Path (Join-Path $outDir "Run-Chakshu.bat") -Encoding ASCII
 

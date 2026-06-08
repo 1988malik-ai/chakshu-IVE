@@ -14,8 +14,8 @@ exit /b 0
 
 :portable
 if exist "%~dp0run_portable.ps1" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_portable.ps1" -AppDir "%~dp0"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_portable.ps1"
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\run_portable.ps1" -AppDir "%~dp0"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\run_portable.ps1"
 )
 if errorlevel 1 pause

@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -568,13 +569,19 @@ async def upload_subtitle(
 def mount_frontend(dist_dir: Path) -> None:
     global _FRONTEND_DIST
     index = dist_dir / "index.html"
-    if dist_dir.is_dir() and index.is_file():
-        _FRONTEND_DIST = dist_dir.resolve()
-        app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="static")
-    else:
+    if not (dist_dir.is_dir() and index.is_file()):
         import logging
 
         logging.getLogger("aive").warning("Frontend not found at %s", dist_dir)
+        return
+
+    _FRONTEND_DIST = dist_dir.resolve()
+
+    @app.get("/", include_in_schema=False)
+    async def spa_index() -> FileResponse:
+        return FileResponse(_FRONTEND_DIST / "index.html")
+
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="static")
 
 
 def run(

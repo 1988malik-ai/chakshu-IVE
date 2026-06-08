@@ -7,14 +7,15 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
-root = Path(SPECPATH).resolve().parent
+root = Path(SPEC).resolve().parent.parent
 
 binaries: list = []
 datas = [(str(root / "config"), "config")]
 # Bundle built React UI inside the exe (fixes "detail not found" when external path missing)
 _frontend_dist = root / "frontend" / "dist"
-if _frontend_dist.is_dir() and (_frontend_dist / "index.html").is_file():
-    datas.append((str(_frontend_dist), "frontend-dist"))
+if not (_frontend_dist / "index.html").is_file():
+    raise SystemExit(f"ERROR: build frontend first - missing {_frontend_dist / 'index.html'}")
+datas.append((str(_frontend_dist), "frontend-dist"))
 hiddenimports = collect_submodules("aive")
 
 for pkg in ("cv2", "imageio_ffmpeg", "uvicorn", "multipart", "starlette", "fastapi", "pydantic"):
