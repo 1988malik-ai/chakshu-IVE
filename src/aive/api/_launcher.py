@@ -15,11 +15,19 @@ def _default_frontend_dist() -> str | None:
     if env and Path(env).is_dir():
         return env
     if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            bundled = Path(meipass) / "frontend-dist"
+            if bundled.is_dir():
+                return str(bundled)
         exe_dir = Path(sys.executable).resolve().parent
-        for name in ("frontend-dist", "frontend/dist"):
+        for name in ("frontend-dist", "frontend", "dist"):
             candidate = exe_dir / name
-            if candidate.is_dir():
+            if candidate.is_dir() and (candidate / "index.html").is_file():
                 return str(candidate)
+            nested = exe_dir / name / "dist"
+            if nested.is_dir() and (nested / "index.html").is_file():
+                return str(nested)
     candidate = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if candidate.is_dir():
         return str(candidate)

@@ -561,8 +561,13 @@ async def upload_subtitle(
 
 
 def mount_frontend(dist_dir: Path) -> None:
-    if dist_dir.is_dir():
+    index = dist_dir / "index.html"
+    if dist_dir.is_dir() and index.is_file():
         app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="static")
+    else:
+        import logging
+
+        logging.getLogger("aive").warning("Frontend not found at %s", dist_dir)
 
 
 def run(

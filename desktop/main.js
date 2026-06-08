@@ -9,6 +9,16 @@ const isDev = !app.isPackaged;
 
 let backendProcess = null;
 
+function getBackendPaths() {
+  const backendDir = path.join(process.resourcesPath, 'backend');
+  const backendExe =
+    process.platform === 'win32'
+      ? path.join(backendDir, 'aive-api.exe')
+      : path.join(backendDir, 'aive-api');
+  const frontendDist = path.join(backendDir, 'frontend-dist');
+  return { backendDir, backendExe, frontendDist };
+}
+
 function getBackendCommand() {
   if (isDev) {
     return {
@@ -18,14 +28,14 @@ function getBackendCommand() {
       env: { ...process.env, PYTHONPATH: path.join(__dirname, '..', 'src') },
     };
   }
-  const backendDir = path.join(process.resourcesPath, 'backend');
-  const backendExe =
-    process.platform === 'win32'
-      ? path.join(backendDir, 'aive-api.exe')
-      : path.join(backendDir, 'aive-api');
-  const frontendDist = path.join(backendDir, 'frontend-dist');
+  const fs = require('fs');
+  const { backendDir, backendExe, frontendDist } = getBackendPaths();
+  if (!fs.existsSync(backendExe)) {
+    throw new Error(`Backend missing: ${backendExe}`);
+  }
   const args = ['--host', '127.0.0.1', '--port', String(API_PORT)];
-  if (require('fs').existsSync(frontendDist)) {
+  // UI is bundled inside aive-api.exe; external frontend-dist is optional fallback
+  if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
     args.push('--frontend-dist', frontendDist);
   }
   return {
@@ -67,9 +77,26 @@ function createWindow() {
 
   if (isDev) {
     win.loadURL(`http://localhost:${DEV_UI_PORT}`);
-  } else {
-    win.loadURL(`http://127.0.0.1:${API_PORT}`);
+    return;
   }
+
+  const url = `http://127.0.0.1:${API_PORT}/`;
+  win.loadURL(url);
+  win.webContents.on('did-finish-load', () => {
+    win.webContents
+      .executeJavaScript('document.body && document.body.innerText')
+      .then((text) => {
+        if (text && String(text).includes('"detail"') && String(text).includes('Not Found')) {
+          dialog.showErrorBox(
+            'Chakshu UI not loaded',
+            'The app window could not load the interface.\n\n' +
+              'Please download a fresh build from GitHub Actions (Chakshu-Native),\n' +
+              'or rebuild with Build-Native.bat after the latest update.'
+          );
+        }
+      })
+      .catch(() => {});
+  });
 }
 
 app.whenReady().then(async () => {

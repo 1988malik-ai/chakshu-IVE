@@ -11,6 +11,10 @@ root = Path(SPECPATH).resolve().parent
 
 binaries: list = []
 datas = [(str(root / "config"), "config")]
+# Bundle built React UI inside the exe (fixes "detail not found" when external path missing)
+_frontend_dist = root / "frontend" / "dist"
+if _frontend_dist.is_dir() and (_frontend_dist / "index.html").is_file():
+    datas.append((str(_frontend_dist), "frontend-dist"))
 hiddenimports = collect_submodules("aive")
 
 for pkg in ("cv2", "imageio_ffmpeg", "uvicorn", "multipart", "starlette", "fastapi", "pydantic"):
