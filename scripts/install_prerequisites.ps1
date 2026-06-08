@@ -52,7 +52,7 @@ function Install-WingetPackage([string]$id, [string]$label) {
 }
 
 Write-Host ""
-Write-Host " Chakshu — install Python 3.12 + Node.js (Windows)" -ForegroundColor Green
+Write-Host " Chakshu - install Python 3.12 + Node.js (Windows)" -ForegroundColor Green
 Write-Host ""
 
 if (-not (Test-Cmd winget)) {
@@ -60,7 +60,7 @@ if (-not (Test-Cmd winget)) {
     Write-Host ""
     Write-Host "Fix one of:"
     Write-Host "  1. Open Microsoft Store -> install / update 'App Installer'"
-    Write-Host "  2. Install manually — see docs\COPY-TO-WINDOWS.md"
+    Write-Host "  2. Install manually - see docs\COPY-TO-WINDOWS.md"
     Write-Host ""
     exit 1
 }
@@ -72,7 +72,7 @@ if ($pyVer -match "Python 3\.12") {
     Write-Host "    Already installed: $pyVer" -ForegroundColor Green
 } else {
     if ($pyVer) {
-        Write-Host "    Found $pyVer — installing Python 3.12 alongside (winget)."
+        Write-Host "    Found $pyVer - installing Python 3.12 alongside (winget)."
     }
     Install-WingetPackage "Python.Python.3.12" "Python 3.12"
     Write-Host "    Close this window and open a NEW terminal, then run: python --version"
@@ -80,7 +80,7 @@ if ($pyVer -match "Python 3\.12") {
 
 # --- Node.js LTS ---
 if ($SkipNode) {
-    Write-Step "Node.js LTS (skipped — use -SkipNode only if frontend/dist is pre-built)"
+    Write-Step "Node.js LTS (skipped - use -SkipNode only if frontend/dist is pre-built)"
 } else {
     Write-Step "Node.js LTS"
     $nodeVer = Get-NodeVersion

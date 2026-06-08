@@ -15,7 +15,7 @@ if (-not $SkipBuild) {
 $srcBackend = Join-Path $Root "dist-backend"
 $exe = Join-Path $srcBackend "aive-api.exe"
 $dist = Join-Path $srcBackend "frontend-dist"
-if (-not (Test-Path $exe)) { throw "Missing $exe — run build first" }
+if (-not (Test-Path $exe)) { throw "Missing $exe - run build first" }
 if (-not (Test-Path (Join-Path $dist "index.html"))) { throw "Missing frontend build in $dist" }
 
 $outDir = Join-Path $Root "release\Chakshu-Portable"

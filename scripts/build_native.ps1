@@ -1,4 +1,4 @@
-# Build native Windows app (Electron window — no browser).
+# Build native Windows app (Electron window - no browser).
 # Output: release\Chakshu-Native-1.0.0.exe
 param(
     [switch]$SkipBuild
@@ -14,7 +14,7 @@ if (-not $SkipBuild) {
 
 $nativeExe = Get-ChildItem "$Root\desktop\dist\Chakshu-Native-*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $nativeExe) {
-    throw "Missing desktop\dist\Chakshu-Native-*.exe — Electron portable build failed"
+    throw "Missing desktop\dist\Chakshu-Native-*.exe - Electron portable build failed"
 }
 
 $releaseDir = Join-Path $Root "release"
@@ -27,4 +27,4 @@ Write-Host "=== Native Windows app ready ===" -ForegroundColor Green
 Write-Host "  $dest"
 Write-Host ""
 Write-Host "Copy this ONE file to any Windows PC and double-click it."
-Write-Host "Opens a native Chakshu window — no browser, no Python, no setup."
+Write-Host "Opens a native Chakshu window - no browser, no Python, no setup."

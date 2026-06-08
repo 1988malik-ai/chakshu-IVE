@@ -28,7 +28,7 @@ if (-not $SkipInstall -and -not (Test-Path "$Root\.venv\Scripts\python.exe")) {
 
 $pip = "$Root\.venv\Scripts\pip.exe"
 $py = "$Root\.venv\Scripts\python.exe"
-if (-not (Test-Path $py)) { throw "Missing .venv — run .\scripts\install.ps1" }
+if (-not (Test-Path $py)) { throw "Missing .venv - run .\scripts\install.ps1" }
 
 Write-Host "=== 1. React frontend ==="
 Set-Location "$Root\frontend"
@@ -68,4 +68,4 @@ npm run build
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
 Write-Host "Installer: desktop\dist\Chakshu-Setup-*.exe"
-Write-Host "Copy that file to any Windows PC and run it — no Python/Node needed on target machine."
+Write-Host "Copy that file to any Windows PC and run it - no Python/Node needed on target machine."
