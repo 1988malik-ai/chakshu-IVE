@@ -39,8 +39,10 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          NODE_ENV: development
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: PyInstaller backend
@@ -61,6 +63,7 @@ jobs:
       - name: Electron native app + installer
         working-directory: desktop
         env:
+          NODE_ENV: development
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           npm install
