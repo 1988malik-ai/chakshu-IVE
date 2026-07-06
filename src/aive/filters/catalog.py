@@ -22,6 +22,7 @@ class FilterCategory(str, Enum):
     GEOMETRIC = "geometric"
     STYLIZE = "stylize"
     RESTORE = "restore"
+    ILLUMINATION = "illumination"
     TEMPORAL = "temporal"
     MOTION = "motion"
     KEYING = "keying"
@@ -165,15 +166,74 @@ FILTER_CATALOG: list[FilterSpec] = [
     _img("rst_defog", "Defog", FilterCategory.RESTORE),
     _img("rst_stabilize_photo", "Photo Stabilize", FilterCategory.RESTORE),
     _img("rst_jpeg_artifact", "JPEG Artifact Reduction", FilterCategory.RESTORE, strength=0.6),
+    # Illumination adjustment (forensic lighting normalization)
+    _both(
+        "ill_homomorphic",
+        "Homomorphic Filter",
+        FilterCategory.ILLUMINATION,
+        "Suppress uneven illumination via log-frequency filtering (R-153)",
+        sigma=30.0,
+        order=0.5,
+    ),
+    _both(
+        "ill_retinex",
+        "Multi-Scale Retinex",
+        FilterCategory.ILLUMINATION,
+        "Retinex illumination normalization for shadow/highlight balance",
+        scales="15,80,250",
+        gain=1.0,
+    ),
+    _both(
+        "ill_adaptive_flatten",
+        "Adaptive Illumination Flatten",
+        FilterCategory.ILLUMINATION,
+        "Divide luminance by Gaussian envelope to flatten uneven lighting",
+        sigma=40.0,
+    ),
+    _both(
+        "ill_clahe_luminance",
+        "CLAHE Luminance",
+        FilterCategory.ILLUMINATION,
+        "Local contrast enhancement on luminance channel",
+        clip=2.0,
+    ),
+    _both(
+        "ill_shadow_lift",
+        "Shadow Lift",
+        FilterCategory.ILLUMINATION,
+        "Lift dark regions while preserving highlights",
+        amount=0.35,
+    ),
     # Advanced (Section 16)
-    _img("adv_homomorphic", "Homomorphic Filter", FilterCategory.RESTORE, sigma=30.0),
+    _img(
+        "adv_homomorphic",
+        "Homomorphic Filter (advanced)",
+        FilterCategory.ILLUMINATION,
+        "Alias for homomorphic illumination filter — use ill_homomorphic for video frames",
+        sigma=30.0,
+        order=0.5,
+    ),
     _img("adv_auto_contrast", "Auto Contrast + Halo Suppress", FilterCategory.TONE, clip=2.5),
     _img("adv_color_separate", "Color Channel Isolate", FilterCategory.COLOR, channel="r"),
     _img("adv_motion_deblur", "Motion Deblur", FilterCategory.RESTORE, strength=0.6),
     _img("adv_jpeg_artifact", "JPEG De-artifact", FilterCategory.RESTORE, strength=0.6),
     _img("adv_channel_replace", "Channel Invert/Replace", FilterCategory.COLOR, channel="g", mode="invert"),
     _img("adv_super_resolution", "Super Resolution", FilterCategory.AI, scale=2.0),
-    _img("adv_panorama", "Panoramic Unwrap", FilterCategory.GEOMETRIC, fov=100.0),
+    _img("adv_panorama", "Panoramic Unwrap (wide)", FilterCategory.GEOMETRIC, fov=100.0),
+    _img(
+        "adv_omni_panorama",
+        "Omnidirectional → Panorama",
+        FilterCategory.GEOMETRIC,
+        "Convert fisheye / 360° sources to equirectangular, cylindrical, or rectilinear views",
+        source_type="fisheye",
+        output_type="equirectangular",
+        fov_deg=180.0,
+        fisheye_model="equidistant",
+        yaw_deg=0.0,
+        pitch_deg=0.0,
+        fov_h_deg=90.0,
+        fov_v_deg=60.0,
+    ),
     _img("adv_deinterlace", "Deinterlace Frame", FilterCategory.TEMPORAL, mode="bob"),
     _img("adv_interlace", "Interlace Fields", FilterCategory.TEMPORAL, field="top"),
     _img("adv_perspective", "Perspective Stabilize", FilterCategory.GEOMETRIC),

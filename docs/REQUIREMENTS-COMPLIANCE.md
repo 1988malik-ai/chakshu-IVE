@@ -201,7 +201,7 @@
 | R-142 | Secure copy + hash validation report | MUST | **IMPLEMENTED** | `forensics/secure_copy.py` |
 | R-143 | Chain of custody log | MUST* | **IMPLEMENTED** | `forensics/case.py`, UI Custody tab |
 | R-144 | Audit log | MUST* | **IMPLEMENTED** | `forensics/audit.py` |
-| R-145 | Direct load from secure media + batch export | MUST | **PLANNED** | — |
+| R-145 | Direct load from secure media + batch export | MUST | **IMPLEMENTED** | `forensics/secure_media_batch.py`, `/api/forensics/secure-media/*`, Export tab UI |
 
 *Forensic examination requirements.
 
@@ -277,7 +277,7 @@
 | **Total requirements** | 104 | All tracked in this matrix |
 | **IMPLEMENTED** | 84 | 81% strict compliance |
 | **PARTIAL** | 18 | 17% |
-| **PLANNED** | 2 | 2% — multi-image align, secure media batch |
+| **PLANNED** | 1 | 1% — multi-image align |
 | **Progress score** | ~89% | Partial items counted at 50% |
 
 | Status | MUST items (approx.) | Notes |

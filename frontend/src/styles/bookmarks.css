@@ -1,4 +1,5 @@
-.fx-bookmarks-panel {
+/* Full-width only outside Examination Lab side row */
+.fx-content:not(.fx-grid-examine) .fx-bookmarks-panel {
   grid-column: 1 / -1;
 }
 

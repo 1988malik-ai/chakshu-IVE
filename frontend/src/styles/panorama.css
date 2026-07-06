@@ -1,0 +1,58 @@
+.fx-panorama-panel {
+  border-top: 1px solid var(--fx-border);
+  background: linear-gradient(180deg, var(--fx-panel-2) 0%, rgba(18, 22, 31, 0.95) 100%);
+}
+
+.fx-panorama-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-panorama-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-panorama-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.fx-panorama-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.62rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fx-panorama-fields label span {
+  font-weight: 600;
+}
+
+.fx-panorama-file-hint {
+  margin: 0;
+  font-size: 0.66rem;
+  color: var(--fx-muted);
+  font-family: var(--fx-mono);
+  word-break: break-all;
+}
+
+.fx-panorama-file-hint--saved {
+  color: var(--fx-accent-2);
+}
+
+.fx-panorama-panel-active {
+  box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.12);
+}
+
+@media (max-width: 700px) {
+  .fx-panorama-fields {
+    grid-template-columns: 1fr;
+  }
+}

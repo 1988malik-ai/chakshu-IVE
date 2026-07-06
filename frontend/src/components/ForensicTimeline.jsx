@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatClock, formatDur, formatTc } from '../lib/timecode';
+
+export { formatTc };
 
 const TYPE = {
   I: { color: '#34d399', glow: 'rgba(52,211,153,0.45)', label: 'I-Frame' },
@@ -10,31 +13,6 @@ const TYPE = {
 const LANES = { I: 36, P: 68, B: 100, '?': 68 };
 const MAIN_H = 168;
 const MINI_H = 28;
-
-function formatTc(sec, fps = 30) {
-  if (sec == null || Number.isNaN(sec)) return '00:00:00:00';
-  const s = Math.max(0, sec);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = Math.floor(s % 60);
-  const fr = Math.floor((s % 1) * fps);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}:${String(fr).padStart(2, '0')}`;
-}
-
-function formatClock(sec) {
-  const m = Math.floor(sec / 60);
-  const s = (sec % 60).toFixed(2);
-  return `${m}:${s.padStart(5, '0')}`;
-}
-
-function formatDur(sec) {
-  if (!sec) return '0:00';
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = Math.floor(sec % 60);
-  if (h) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 export default function ForensicTimeline({
   timeline = null,
@@ -250,10 +228,23 @@ export default function ForensicTimeline({
   useEffect(() => { redraw(); }, [redraw, timeline, zoom, scroll]);
 
   useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
     const ro = new ResizeObserver(redraw);
-    if (rootRef.current) ro.observe(rootRef.current);
+    ro.observe(el);
     return () => ro.disconnect();
   }, [redraw]);
+
+  const endDrag = useCallback(() => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (drag.mode === 'region' && drag.end != null) {
+      const a = Math.min(drag.start, drag.end);
+      const b = Math.max(drag.start, drag.end);
+      if (b - a > 0.05) onRegionSelect?.(a, b);
+    }
+    dragRef.current = null;
+  }, [onRegionSelect]);
 
   const clientToTime = (clientX) => {
     const wrap = wrapRef.current;
@@ -272,14 +263,8 @@ export default function ForensicTimeline({
     return Math.max(0, Math.min(duration, ratio * duration));
   };
 
-  const commitRegion = (r) => {
-    if (!r) return;
-    const a = Math.min(r[0], r[1]);
-    const b = Math.max(r[0], r[1]);
-    if (b - a > 0.05) onRegionSelect?.(a, b);
-  };
-
   const onPointerDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
     const t = clientToTime(e.clientX);
     if (e.shiftKey) {
       dragRef.current = { mode: 'region', start: t, surface: 'main' };
@@ -291,6 +276,7 @@ export default function ForensicTimeline({
   };
 
   const onMiniDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
     const t = miniToTime(e.clientX);
     dragRef.current = { mode: 'pan', start: t, surface: 'mini' };
     const span = duration / zoom;
@@ -309,6 +295,7 @@ export default function ForensicTimeline({
     }
     const t = clientToTime(e.clientX);
     if (dragRef.current.mode === 'region') {
+      dragRef.current.end = t;
       setRegion([dragRef.current.start, t]);
     } else {
       onSeek?.(t);
@@ -316,8 +303,7 @@ export default function ForensicTimeline({
   };
 
   const onPointerUp = () => {
-    if (dragRef.current?.mode === 'region' && region) commitRegion(region);
-    dragRef.current = null;
+    endDrag();
   };
 
   const onWheel = (e) => {
@@ -428,5 +414,3 @@ export default function ForensicTimeline({
     </div>
   );
 }
-
-export { formatTc };

@@ -1,3 +1,5 @@
+import BrandMark from './BrandMark';
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▣' },
   { id: 'studio', label: 'Media Studio', icon: '◫' },
@@ -11,8 +13,7 @@ export default function Layout({ page, setPage, title, children, status, error, 
     <div className="erp-app">
       <aside className="erp-sidebar">
         <div className="erp-brand">
-          <h1>AI-IVE</h1>
-          <span>Enterprise Media Suite</span>
+          <BrandMark variant="sidebar" />
         </div>
         <nav className="erp-nav">
           {NAV.map((item) => (

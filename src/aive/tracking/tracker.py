@@ -8,8 +8,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import cv2
 import numpy as np
+
+try:
+    import cv2
+
+    HAS_CV2 = True
+except ImportError:
+    cv2 = None  # type: ignore
+    HAS_CV2 = False
 
 
 class TrackingMode(str, Enum):
@@ -94,6 +101,8 @@ class ObjectTracker:
         session_id: str,
         tracker_type: str = "CSRT",
     ) -> list[TrackPoint]:
+        if not HAS_CV2:
+            raise RuntimeError("OpenCV required for automatic tracking")
         session = self._sessions[session_id]
         session.mode = TrackingMode.AUTOMATIC
         tracker_ctor = getattr(cv2, f"Tracker{tracker_type}_create", None) or getattr(

@@ -127,9 +127,13 @@ export default function ExamCanvas({
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
     const img = imgRef.current;
-    if (!canvas || !img) return;
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
+    if (!canvas || !img || !img.clientWidth || !img.clientHeight) return;
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const scale = getScale();
@@ -304,7 +308,7 @@ export default function ExamCanvas({
       </div>
       <div className="fx-markup-stage">
         {imageSrc ? (
-          <>
+          <div className="fx-markup-frame">
             <img ref={imgRef} src={imageSrc} alt="Examination" onLoad={paint} draggable={false} />
             <canvas
               ref={canvasRef}
@@ -314,7 +318,7 @@ export default function ExamCanvas({
               onMouseUp={onMouseUp}
               onMouseLeave={() => setDraft(null)}
             />
-          </>
+          </div>
         ) : (
           <span style={{ color: '#555', padding: 40 }}>Load evidence to begin markup</span>
         )}

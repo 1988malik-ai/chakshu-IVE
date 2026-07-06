@@ -4,10 +4,26 @@ from __future__ import annotations
 
 import base64
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
+
+HEIF_EXTENSIONS = {".heic", ".heif", ".heics", ".heifs"}
+
+
+def _register_heif_opener() -> bool:
+    try:
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+        return True
+    except ImportError:
+        return False
+
+
+HAS_HEIF = _register_heif_opener()
 
 try:
     import cv2
@@ -18,8 +34,12 @@ except ImportError:
     HAS_CV2 = False
 
 
+def _is_heif_name(filename: str) -> bool:
+    return Path(filename).suffix.lower() in HEIF_EXTENSIONS
+
+
 def bgr_from_bytes(data: bytes, filename: str = "") -> np.ndarray:
-    if HAS_CV2:
+    if HAS_CV2 and not _is_heif_name(filename):
         arr = np.frombuffer(data, dtype=np.uint8)
         frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is not None:
@@ -34,7 +54,24 @@ def bgr_from_bytes(data: bytes, filename: str = "") -> np.ndarray:
         rgb = np.array(pil)
         return rgb[:, :, ::-1].copy()  # RGB → BGR for pipeline compatibility
     except Exception as e:
+        if _is_heif_name(filename) and not HAS_HEIF:
+            raise ValueError(
+                f"Could not decode HEIC/HEIF '{filename}'. Install: pip install pillow-heif"
+            ) from e
         raise ValueError(f"Could not decode image '{filename}': {e}") from e
+
+
+def save_bgr_jpeg(path: Path | str, frame: np.ndarray, quality: int = 90) -> None:
+    """Write BGR numpy frame to JPEG on disk."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if HAS_CV2:
+        ok = cv2.imwrite(str(p), frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if ok:
+            return
+    rgb = frame[:, :, ::-1]
+    img = Image.fromarray(rgb.astype(np.uint8))
+    img.save(p, format="JPEG", quality=quality)
 
 
 def bgr_to_jpeg_base64(frame: np.ndarray, quality: int = 85) -> str:
@@ -48,6 +85,37 @@ def bgr_to_jpeg_base64(frame: np.ndarray, quality: int = 85) -> str:
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def denoise_colored(
+    frame: np.ndarray,
+    h: int = 10,
+    h_color: int | None = None,
+    template_window: int = 7,
+    search_window: int = 21,
+) -> np.ndarray:
+    """Non-local means denoise with fallbacks for partial OpenCV installs."""
+    h_color = h if h_color is None else h_color
+    if HAS_CV2:
+        fn = getattr(cv2, "fastNlMeansDenoisedColored", None)
+        if callable(fn):
+            return fn(frame, None, h, h_color, template_window, search_window)
+        fn_g = getattr(cv2, "fastNlMeansDenoising", None)
+        if callable(fn_g):
+            if frame.ndim == 3 and frame.shape[2] >= 3:
+                channels = cv2.split(frame)
+                merged = [fn_g(c, None, h, template_window, search_window) for c in channels]
+                return cv2.merge(merged)
+            return fn_g(frame, None, h, template_window, search_window)
+        blurred = cv2.GaussianBlur(frame, (0, 0), max(0.8, h / 10))
+        return cv2.bilateralFilter(blurred, 9, 50, 50)
+    rgb = frame[:, :, ::-1]
+    img = Image.fromarray(rgb.astype(np.uint8))
+    img = img.filter(ImageFilter.MedianFilter(size=3))
+    radius = max(1, min(3, h // 3))
+    img = img.filter(ImageFilter.GaussianBlur(radius=radius))
+    out = np.array(img.convert("RGB"))
+    return out[:, :, ::-1].copy()
 
 
 def apply_basic_filter(frame: np.ndarray, filter_id: str, params: dict[str, Any]) -> np.ndarray:
@@ -84,6 +152,11 @@ def apply_basic_filter(frame: np.ndarray, filter_id: str, params: dict[str, Any]
     elif filter_id.startswith("blr_box"):
         radius = max(1, int(float(params.get("radius", 3))))
         img = img.filter(ImageFilter.BoxBlur(radius))
+    elif filter_id.startswith("ns_denoise") or filter_id.startswith("both_denoise") or filter_id.startswith("ns_nlmeans"):
+        h = int(3 + float(params.get("strength", 0.5)) * 7) | 1
+        return denoise_colored(frame, h=h, h_color=h)
+    elif filter_id.startswith("ns_median_denoise") or filter_id.startswith("ns_remove_hot_pixels"):
+        img = img.filter(ImageFilter.MedianFilter(size=5))
     elif filter_id.startswith("sty_emboss"):
         img = img.filter(ImageFilter.EMBOSS)
     elif filter_id.startswith("sty_edge_detect") or filter_id.startswith("sty_canny"):

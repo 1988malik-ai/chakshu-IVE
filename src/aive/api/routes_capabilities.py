@@ -129,7 +129,15 @@ class RedactBody(BaseModel):
 class OverlayBody(BaseModel):
     session_id: str
     timestamp_text: str = ""
+    timestamp_position: str = "bottom-right"  # top-left | top-right | bottom-left | bottom-right
     grid: bool = False
+    grid_step: int = 50
+    grid_style: str = "uniform"  # uniform | thirds | center
+    grid_divisions: int | None = None
+    pip_path: str | None = None
+    pip_time_sec: float = 0.0
+    pip_scale: float = 0.28
+    pip_position: str = "top-right"
 
 
 class MeasureBody(BaseModel):
@@ -149,6 +157,9 @@ class CompareSeekBody(BaseModel):
     session_id: str
     left_time: float | None = None
     right_time: float | None = None
+    mode: str = "side_by_side"
+    pip_scale: float = 0.28
+    pip_position: str = "top-right"
 
 
 @router.get("/hash/algorithms")
@@ -392,16 +403,45 @@ def privacy_redact(body: RedactBody) -> dict[str, Any]:
 
 @router.post("/examination/overlay")
 def apply_overlay(body: OverlayBody) -> dict[str, Any]:
+    import logging
+
+    from aive.comparison.session import _frame_bgr
+
+    log = logging.getLogger("aive.overlay")
     session = sessions.get(body.session_id)
     if not session or session.frame is None:
         raise HTTPException(404, "Session not found")
-    frame = session.frame
-    if body.timestamp_text:
-        frame = draw_timestamp(frame, body.timestamp_text)
-    if body.grid:
-        frame = draw_grid(frame)
-    session.frame = frame
-    return examination_preview_fields(session)
+    try:
+        frame = session.frame
+        if body.pip_path:
+            pip_path = Path(body.pip_path).expanduser()
+            if not pip_path.is_file():
+                raise HTTPException(400, f"PiP file not found: {body.pip_path}")
+            inset = _frame_bgr(pip_path, body.pip_time_sec)
+            if inset is None:
+                raise HTTPException(400, f"Could not load PiP source: {body.pip_path}")
+            frame = draw_pip(
+                frame,
+                inset,
+                scale=body.pip_scale,
+                position=body.pip_position,
+            )
+        if body.timestamp_text:
+            frame = draw_timestamp(frame, body.timestamp_text, position=body.timestamp_position)
+        if body.grid:
+            frame = draw_grid(
+                frame,
+                step=body.grid_step,
+                style=body.grid_style,
+                divisions=body.grid_divisions,
+            )
+        session.frame = frame
+        return examination_preview_fields(session)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("overlay failed session=%s pip=%s", body.session_id, body.pip_path)
+        raise HTTPException(500, f"Overlay failed: {e}") from e
 
 
 @router.post("/measure/distance")
@@ -439,16 +479,60 @@ def compare_create(body: CompareCreateBody) -> dict[str, Any]:
     return {"session_id": s.id, "left": s.left_path, "right": s.right_path}
 
 
-@router.post("/compare/render")
-def compare_render(body: CompareSeekBody) -> dict[str, Any]:
-    s = compare_store._sessions.get(body.session_id)
+@router.get("/compare/{session_id}")
+def compare_get(session_id: str) -> dict[str, Any]:
+    s = compare_store.get(session_id)
     if not s:
         raise HTTPException(404, "Compare session not found")
-    if body.left_time is not None:
-        s.left_time = body.left_time
-    if body.right_time is not None:
-        s.right_time = body.right_time
-    return compare_store.render(body.session_id)
+    return {
+        "session_id": s.id,
+        "left_path": s.left_path,
+        "right_path": s.right_path,
+        "left_time": s.left_time,
+        "right_time": s.right_time,
+    }
+
+
+@router.post("/compare/render")
+def compare_render(body: CompareSeekBody) -> dict[str, Any]:
+    import logging
+
+    log = logging.getLogger("aive.compare")
+    s = compare_store.get(body.session_id)
+    if not s:
+        raise HTTPException(404, "Compare session not found")
+    try:
+        if body.left_time is not None:
+            s.left_time = body.left_time
+        if body.right_time is not None:
+            s.right_time = body.right_time
+        mode = body.mode if body.mode in ("side_by_side", "pip") else "side_by_side"
+        result = compare_store.render(
+            body.session_id,
+            mode=mode,
+            pip_scale=body.pip_scale,
+            pip_position=body.pip_position,
+        )
+        if not result.get("success"):
+            log.warning(
+                "compare/render failed session=%s left=%s right=%s err=%s",
+                body.session_id,
+                s.left_path,
+                s.right_path,
+                result.get("error"),
+            )
+            raise HTTPException(400, result.get("error", "Compare render failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(
+            "compare/render error session=%s left=%s right=%s",
+            body.session_id,
+            s.left_path,
+            s.right_path,
+        )
+        raise HTTPException(500, f"Compare render failed: {e}") from e
 
 
 @router.post("/mpeg/visualize")
@@ -541,6 +625,159 @@ def advanced_stabilize(body: AdvancedVideoBody) -> dict[str, Any]:
         Path(body.output_path).expanduser(),
         body.smoothing,
     )
+
+
+class TrackingStabilizeBody(BaseModel):
+    input_path: str
+    output_path: str
+    bbox: list[float]
+    time_sec: float = 0.0
+    end_sec: float | None = None
+    tracker_type: str = "CSRT"
+    smoothing: int = 15
+    mode: str = "full"
+    crop_padding: float = 0.15
+    max_frames: int = 5000
+
+
+@router.post("/advanced/tracking-stabilize")
+def advanced_tracking_stabilize(body: TrackingStabilizeBody) -> dict[str, Any]:
+    """R-160 — object-tracking-based video stabilization."""
+    from aive.video.tracking_stabilize import stabilize_video_object_tracking
+
+    if len(body.bbox) < 4:
+        raise HTTPException(400, "bbox must be [x, y, width, height]")
+    bbox = (float(body.bbox[0]), float(body.bbox[1]), float(body.bbox[2]), float(body.bbox[3]))
+    mode = body.mode if body.mode in ("full", "crop") else "full"
+    result = stabilize_video_object_tracking(
+        _path(body.input_path),
+        Path(body.output_path).expanduser(),
+        bbox,
+        start_sec=body.time_sec,
+        end_sec=body.end_sec,
+        tracker_type=body.tracker_type,
+        smoothing=body.smoothing,
+        mode=mode,  # type: ignore[arg-type]
+        crop_padding=body.crop_padding,
+        max_frames=body.max_frames,
+    )
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error", result.get("stderr", "Failed")))
+    case = case_store.active_case()
+    audit_log.record(case.case_id, "TRACK_STABILIZE", "examiner", output=body.output_path)
+    return result
+
+
+class PanoramaConvertBody(BaseModel):
+    input_path: str
+    output_path: str
+    source_type: str = "fisheye"
+    output_type: str = "equirectangular"
+    fov_deg: float = 180.0
+    fisheye_model: str = "equidistant"
+    yaw_deg: float = 0.0
+    pitch_deg: float = 0.0
+    fov_h_deg: float = 90.0
+    fov_v_deg: float = 60.0
+    out_width: int | None = None
+    out_height: int | None = None
+
+
+@router.post("/advanced/panorama-convert")
+def advanced_panorama_convert(body: PanoramaConvertBody) -> dict[str, Any]:
+    """R-152 — convert omnidirectional / 360° image to panoramic output."""
+    from aive.panorama import convert_omnidirectional_file
+
+    result = convert_omnidirectional_file(
+        _path(body.input_path),
+        Path(body.output_path).expanduser(),
+        source_type=body.source_type,
+        output_type=body.output_type,
+        fov_deg=body.fov_deg,
+        fisheye_model=body.fisheye_model,  # type: ignore[arg-type]
+        yaw_deg=body.yaw_deg,
+        pitch_deg=body.pitch_deg,
+        fov_h_deg=body.fov_h_deg,
+        fov_v_deg=body.fov_v_deg,
+        out_width=body.out_width,
+        out_height=body.out_height,
+    )
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error", "Panorama conversion failed"))
+    case = case_store.active_case()
+    audit_log.record(
+        case.case_id,
+        "PANORAMA_CONVERT",
+        "examiner",
+        input=body.input_path,
+        output=body.output_path,
+        source_type=body.source_type,
+        output_type=body.output_type,
+    )
+    return result
+
+
+class PanoramaSessionBody(BaseModel):
+    session_id: str
+    output_path: str
+    source_type: str = "fisheye"
+    output_type: str = "equirectangular"
+    fov_deg: float = 180.0
+    fisheye_model: str = "equidistant"
+    yaw_deg: float = 0.0
+    pitch_deg: float = 0.0
+    fov_h_deg: float = 90.0
+    fov_v_deg: float = 60.0
+    out_width: int | None = None
+    out_height: int | None = None
+
+
+@router.post("/advanced/panorama-session")
+def advanced_panorama_session(body: PanoramaSessionBody) -> dict[str, Any]:
+    """Convert current examination frame (image or video still) to panoramic JPEG."""
+    from aive.imaging import save_bgr_jpeg
+    from aive.panorama import convert_omnidirectional
+
+    session = sessions.get(body.session_id)
+    if not session or session.master_frame is None:
+        raise HTTPException(400, "No frame loaded in session")
+    out = Path(body.output_path).expanduser()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        result = convert_omnidirectional(
+            session.master_frame,
+            source_type=body.source_type,
+            output_type=body.output_type,
+            fov_deg=body.fov_deg,
+            fisheye_model=body.fisheye_model,  # type: ignore[arg-type]
+            yaw_deg=body.yaw_deg,
+            pitch_deg=body.pitch_deg,
+            fov_h_deg=body.fov_h_deg,
+            fov_v_deg=body.fov_v_deg,
+            out_width=body.out_width,
+            out_height=body.out_height,
+        )
+    except Exception as e:
+        raise HTTPException(400, str(e)) from e
+    save_bgr_jpeg(out, result)
+    case = case_store.active_case()
+    audit_log.record(
+        case.case_id,
+        "PANORAMA_CONVERT",
+        "examiner",
+        session_id=body.session_id,
+        output=str(out),
+        source_type=body.source_type,
+        output_type=body.output_type,
+    )
+    return {
+        "success": True,
+        "output_path": str(out),
+        "width": int(result.shape[1]),
+        "height": int(result.shape[0]),
+        "source_type": body.source_type,
+        "output_type": body.output_type,
+    }
 
 
 @router.post("/advanced/perspective-stabilize")

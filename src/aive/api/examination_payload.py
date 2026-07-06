@@ -19,6 +19,17 @@ def examination_preview_fields(session: MediaSession) -> dict[str, Any]:
     }
     if session.frame is not None:
         fields["preview"] = sessions.frame_to_base64_jpeg(session.frame)
+        fields["width"] = int(session.frame.shape[1])
+        fields["height"] = int(session.frame.shape[0])
     if session.master_frame is not None:
         fields["preview_original"] = sessions.frame_to_base64_jpeg(session.master_frame)
+    return fields
+
+
+def examination_preview_from_frame(session: MediaSession, frame) -> dict[str, Any]:
+    """Non-destructive preview of a hypothetical filter result."""
+    fields = examination_preview_fields(session)
+    fields["preview"] = sessions.frame_to_base64_jpeg(frame)
+    fields["is_enhanced"] = True
+    fields["preview_only"] = True
     return fields

@@ -5,15 +5,14 @@
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  background: linear-gradient(155deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 55%, rgba(8, 12, 24, 1) 100%);
-  border: 1px solid rgba(96, 165, 250, 0.18);
+  background: linear-gradient(155deg, #12161f 0%, #090c11 55%, #06080c 100%);
+  border: 1px solid var(--fx-border-accent, rgba(56, 189, 248, 0.22));
   border-radius: 14px;
   padding: 16px 18px;
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset,
     0 1px 0 rgba(255, 255, 255, 0.06) inset;
-  backdrop-filter: blur(12px);
 }
 
 /* Timeline page: single column, no horizontal bleed */
@@ -22,9 +21,13 @@
   flex-direction: column;
   gap: 16px;
   overflow-x: hidden;
+  overflow-y: auto;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
   width: 100%;
   max-width: 100%;
+  align-content: start;
 }
 
 .ftl-loading, .ftl-empty {
@@ -58,21 +61,21 @@
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(52, 211, 153, 0.12));
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.1));
+  border: 1px solid var(--fx-border-accent, rgba(56, 189, 248, 0.28));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.25rem;
-  color: #93c5fd;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+  color: var(--fx-accent);
+  box-shadow: 0 8px 24px rgba(56, 189, 248, 0.12);
 }
 
 .ftl-spinner {
   width: 32px;
   height: 32px;
-  border: 2px solid rgba(59, 130, 246, 0.15);
-  border-top-color: #60a5fa;
+  border: 2px solid var(--fx-accent-muted, rgba(56, 189, 248, 0.12));
+  border-top-color: var(--fx-accent);
   border-radius: 50%;
   animation: ftl-spin 0.65s linear infinite;
 }
@@ -349,3 +352,149 @@
 }
 
 .ftl-audio-row .fx-btn { flex: 1; font-size: 0.68rem; }
+
+/* Timeline Pro page — viewer, transport, inspector, region analysis */
+.ftl-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.ftl-viewer-empty {
+  font-size: 0.82rem;
+  color: var(--fx-muted);
+  letter-spacing: 0.02em;
+}
+
+.ftl-transport-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.ftl-transport-bar .fx-playback-transport {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.ftl-index-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ftl-index-actions .fx-btn-primary {
+  min-width: 108px;
+}
+
+.ftl-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.65) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-width: 0;
+  max-width: 100%;
+  max-height: min(520px, calc(100vh - 280px));
+  overflow-y: auto;
+}
+
+.ftl-inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ftl-evidence-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ftl-evidence-line strong {
+  margin-right: 4px;
+}
+
+.ftl-audio-stream {
+  font-family: var(--fx-mono);
+  font-size: 0.68rem;
+  color: var(--fx-text-secondary);
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ftl-tools-link {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.ftl-tools-link .fx-btn {
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.ftl-analysis-card {
+  width: 100%;
+  min-width: 0;
+}
+
+.fx-region-panel-embedded {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.35) 0%, rgba(15, 23, 42, 0.55) 100%);
+  margin-bottom: 0;
+  padding: 14px 16px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.fx-region-panel-embedded .ftl-section-label {
+  margin-bottom: 10px;
+}
+
+.ftl-analysis-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fx-region-panel-embedded .fx-export-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 960px) {
+  .ftl-inspector {
+    max-height: none;
+  }
+
+  .ftl-transport-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ftl-index-actions {
+    width: 100%;
+  }
+
+  .ftl-index-actions .fx-btn-primary {
+    flex: 1;
+  }
+}

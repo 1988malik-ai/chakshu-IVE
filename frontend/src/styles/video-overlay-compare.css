@@ -1,0 +1,212 @@
+.fx-voc-panel {
+  border-top: 1px solid var(--fx-border);
+  background: linear-gradient(180deg, var(--fx-panel-2) 0%, rgba(18, 22, 31, 0.95) 100%);
+}
+
+.fx-voc-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fx-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fx-voc-tutorial-toggle {
+  border: 1px solid var(--fx-border);
+  background: transparent;
+  color: var(--fx-accent-2);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: var(--fx-radius-sm, 6px);
+  cursor: pointer;
+}
+
+.fx-voc-tutorial-toggle:hover {
+  border-color: var(--fx-accent-2);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.fx-voc-tutorial {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.fx-voc-tutorial-next {
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.14), rgba(96, 165, 250, 0.04));
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-voc-tutorial-next-label {
+  display: block;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fx-accent-2);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.fx-voc-tutorial-next strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--fx-text);
+  margin-bottom: 4px;
+}
+
+.fx-voc-tutorial-next p {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--fx-muted);
+}
+
+.fx-voc-tutorial-steps {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-voc-tutorial-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.68rem;
+  color: var(--fx-muted);
+}
+
+.fx-voc-tutorial-step strong {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--fx-text-secondary);
+  margin-bottom: 2px;
+}
+
+.fx-voc-tutorial-step p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.fx-voc-tutorial-step-num {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border: 1px solid var(--fx-border);
+  color: var(--fx-muted);
+  background: var(--fx-panel);
+}
+
+.fx-voc-tutorial-step--current .fx-voc-tutorial-step-num {
+  border-color: var(--fx-accent-2);
+  color: #0a1628;
+  background: var(--fx-accent-2);
+}
+
+.fx-voc-tutorial-step--current strong {
+  color: var(--fx-accent-2);
+}
+
+.fx-voc-tutorial-step--done .fx-voc-tutorial-step-num {
+  border-color: var(--fx-accent-2);
+  color: var(--fx-accent-2);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.fx-voc-tutorial-step--done strong {
+  color: var(--fx-text);
+}
+
+.fx-voc-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fx-voc-section {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.fx-voc-section h4 {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fx-accent-2);
+}
+
+.fx-voc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 0.62rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+}
+
+.fx-voc-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.fx-voc-path-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-voc-browse-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.fx-voc-fields-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fx-voc-fields-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.62rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+}
+
+.fx-voc-sync {
+  margin: 4px 0 8px;
+  font-size: 0.68rem;
+}
+
+.fx-voc-preview-hint {
+  margin: 0;
+  font-size: 0.66rem;
+  color: var(--fx-accent-2);
+}
+
+.fx-voc-panel-active {
+  box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.12);
+}

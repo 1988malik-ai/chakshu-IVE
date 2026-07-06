@@ -5,6 +5,7 @@ import ForensicTimeline, { formatTc } from './components/ForensicTimeline';
 import ExamCanvas from './components/ExamCanvas';
 import LiveCapture from './components/LiveCapture';
 import LocaleSettings from './components/LocaleSettings';
+import ProjectStructureSettings from './components/ProjectStructureSettings';
 import ExamCompareDock from './components/ExamCompareDock';
 import ProjectNotesPanel from './components/ProjectNotesPanel';
 import LegalExportPanel from './components/LegalExportPanel';
@@ -18,7 +19,7 @@ import SidebarFooter from './components/SidebarFooter';
 import { useForensicPlayback } from './hooks/useForensicPlayback';
 import CompareFrameView from './components/CompareFrameView';
 import { useLocale } from './i18n/LocaleContext';
-import { PRODUCT_FULL } from './brand';
+import BrandMark from './components/BrandMark';
 import {
   derivePathsFromOutputDir,
   loadExportFormFromStorage,
@@ -26,18 +27,38 @@ import {
   outputDirForCase,
   saveExportFormToStorage,
 } from './lib/exportPaths';
+import { formatApiError, toastDuration } from './lib/notify';
+import { filtersForMediaType, filterScopeSummary, mediaContext, examinationToolGroups } from './lib/mediaContext';
+import MediaTypeGate, { MediaTypeEmpty } from './components/MediaTypeGate';
+import GridOverlayPanel from './components/GridOverlayPanel';
+import TimestampEditorPanel from './components/TimestampEditorPanel';
+import PerspectiveCorrectionPanel from './components/PerspectiveCorrectionPanel';
+import PanoramaConversionPanel from './components/PanoramaConversionPanel';
+import VideoOverlayComparePanel from './components/VideoOverlayComparePanel';
+import TrackingStabilizePanel from './components/TrackingStabilizePanel';
+import RegionAnalysisPanel from './components/RegionAnalysisPanel';
+import TimelineProPage from './components/TimelineProPage';
+import {
+  loadGridOverlaySettings,
+  overlayBurnPayload,
+  saveGridOverlaySettings,
+} from './lib/gridOverlay';
+import {
+  loadTimestampSettings,
+  resolveTimestampText,
+  saveTimestampSettings,
+} from './lib/timestampEdit';
 
 const NAV_KEYS = [
-  { id: 'command', key: 'nav.command' },
-  { id: 'examine', key: 'nav.examine' },
-  { id: 'capture', key: 'nav.capture' },
-  { id: 'markup', key: 'nav.markup' },
-  { id: 'timeline', key: 'nav.timeline' },
-  { id: 'tools', key: 'nav.tools' },
-  { id: 'custody', key: 'nav.custody' },
-  { id: 'export', key: 'nav.export' },
-  { id: 'reports', key: 'nav.reports' },
-  { id: 'settings', key: 'nav.settings' },
+  { id: 'command', key: 'nav.command', icon: '◈' },
+  { id: 'examine', key: 'nav.examine', icon: '◎' },
+  { id: 'capture', key: 'nav.capture', icon: '▣' },
+  { id: 'markup', key: 'nav.markup', icon: '✎' },
+  { id: 'timeline', key: 'nav.timeline', icon: '▤' },
+  { id: 'tools', key: 'nav.tools', icon: '⫶' },
+  { id: 'custody', key: 'nav.custody', icon: '⊞' },
+  { id: 'export', key: 'nav.export', icon: '⇪' },
+  { id: 'reports', key: 'nav.reports', icon: '≡' },
 ];
 
 export default function ForensicApp() {
@@ -59,8 +80,24 @@ export default function ForensicApp() {
   const [videoInfo, setVideoInfo] = useState(null);
   const [notes, setNotes] = useState([]);
   const [projectMeta, setProjectMeta] = useState({ project_id: null, name: 'Examination' });
+  const [caseDraft, setCaseDraft] = useState('');
+  const [caseSubmitting, setCaseSubmitting] = useState(false);
   const [notesCollapsed, setNotesCollapsed] = useState(
-    () => localStorage.getItem('chakshu.notesCollapsed') === '1',
+    () => {
+      const stored = localStorage.getItem('chakshu.notesCollapsed');
+      if (stored != null) return stored === '1';
+      return typeof window !== 'undefined' && window.innerWidth <= 1180;
+    },
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => {
+      const stored = localStorage.getItem('chakshu.sidebarCollapsed');
+      if (stored != null) return stored === '1';
+      return true;
+    },
+  );
+  const [pipelineCollapsed, setPipelineCollapsed] = useState(
+    () => localStorage.getItem('chakshu.pipelineCollapsed') === '1',
   );
   const [compareId, setCompareId] = useState(null);
   const [status, setStatus] = useState('');
@@ -97,12 +134,17 @@ export default function ForensicApp() {
   const [aiModelId, setAiModelId] = useState('');
   const [aiStrength, setAiStrength] = useState(1.0);
   const [labFlash, setLabFlash] = useState('');
+  const [filterApplying, setFilterApplying] = useState(false);
   const [autoOpenLab, setAutoOpenLab] = useState(
     () => localStorage.getItem('chakshu.autoOpenLab') !== '0',
   );
   const [showOriginalPreview, setShowOriginalPreview] = useState(
     () => localStorage.getItem('chakshu.showOriginalPreview') === '1',
   );
+  const [gridOverlay, setGridOverlay] = useState(loadGridOverlaySettings);
+  const [gridBurning, setGridBurning] = useState(false);
+  const [timestampSettings, setTimestampSettings] = useState(loadTimestampSettings);
+  const [timestampBurning, setTimestampBurning] = useState(false);
   const aiModelFileRef = useRef(null);
   const fileRef = useRef(null);
   const videoRef = useRef(null);
@@ -110,13 +152,35 @@ export default function ForensicApp() {
 
   const [exportForm, setExportForm] = useState(loadExportFormFromStorage);
 
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const notify = useCallback((message, type = 'success') => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev.slice(-4), { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
+    }, toastDuration(type));
   }, []);
+
+  const reportError = useCallback((err, context) => {
+    const message = formatApiError(typeof err === 'string' ? { message: err } : err);
+    const full = context ? `${context}: ${message}` : message;
+    setError(message);
+    notify(full, 'error');
+  }, [notify]);
+
+  useEffect(() => {
+    const activeLabel = forensicCase?.display_id || forensicCase?.case_number || forensicCase?.case_id || '';
+    setCaseDraft(activeLabel);
+  }, [forensicCase?.case_id, forensicCase?.case_number, forensicCase?.display_id]);
+
+  const reportSuccess = useCallback((message) => {
+    setError('');
+    setStatus(message);
+    notify(message, 'success');
+  }, [notify]);
 
   const setBlocking = useCallback((active, opts = {}) => {
     if (!active) {
@@ -140,26 +204,33 @@ export default function ForensicApp() {
   }, []);
 
   const init = useCallback(async () => {
-    try {
-      const { session_id } = await api.createSession();
-      setSessionId(session_id);
-      const [flt, fc, proj] = await Promise.all([
-        api.fetchFilters(),
-        api.forensicsActiveCase(),
-        api.projectCurrent(),
-      ]);
-      setFilters(flt.filters || []);
-      setForensicCase(fc);
-      if (proj?.export_settings) {
-        setExportForm((f) => mergeExportSettings(f, proj.export_settings));
+    const attempt = async (retriesLeft) => {
+      try {
+        const { session_id } = await api.createSession();
+        setSessionId(session_id);
+        const [flt, fc, proj] = await Promise.all([
+          api.fetchFilters(),
+          api.forensicsActiveCase(),
+          api.projectCurrent(),
+        ]);
+        setFilters(flt.filters || []);
+        setForensicCase(fc);
+        if (proj?.export_settings) {
+          setExportForm((f) => mergeExportSettings(f, proj.export_settings));
+        }
+        await refreshProjectNotes();
+        setStatus(`${fc.display_id || fc.case_number} · ${flt.implemented_count || 0} forensic filters ready`);
+      } catch (e) {
+        if (retriesLeft > 0 && /Failed to fetch|NetworkError|Load failed/i.test(e?.message || '')) {
+          await new Promise((r) => setTimeout(r, 800));
+          return attempt(retriesLeft - 1);
+        }
+        reportError(e, 'Startup failed');
+        setStatus(t('status.api_offline', 'API offline — start Chakshu or Run-Chakshu.bat'));
       }
-      await refreshProjectNotes();
-      setStatus(`${fc.display_id || fc.case_number} · ${flt.implemented_count || 0} forensic filters ready`);
-    } catch (e) {
-      setError(e.message);
-      setStatus(t('status.api_offline', 'API offline — start: python -m aive.api.server'));
-    }
-  }, [t, refreshProjectNotes]);
+    };
+    await attempt(4);
+  }, [t, refreshProjectNotes, reportError]);
 
   useEffect(() => { init(); }, [init]);
 
@@ -177,35 +248,141 @@ export default function ForensicApp() {
     if (page !== 'examine' || !sessionId) return;
     api.forensicsPreview(sessionId)
       .then(handlePreview)
-      .catch(() => {});
-  }, [page, sessionId]);
+      .catch((e) => {
+        if (!/No frame loaded/i.test(e?.message || '')) {
+          reportError(e, 'Could not refresh examination preview');
+        }
+      });
+  }, [page, sessionId, reportError]);
 
   useEffect(() => {
     if (!status) setStatus(t('status.init', 'Initializing forensic services…'));
   }, [t, status]);
 
+  useEffect(() => {
+    const collapseSidePanels = () => {
+      if (window.innerWidth > 1180) return;
+      setNotesCollapsed(true);
+      localStorage.setItem('chakshu.notesCollapsed', '1');
+      if (window.innerWidth <= 960) {
+        setSidebarCollapsed(true);
+        localStorage.setItem('chakshu.sidebarCollapsed', '1');
+      }
+    };
+
+    collapseSidePanels();
+    window.addEventListener('resize', collapseSidePanels);
+    return () => window.removeEventListener('resize', collapseSidePanels);
+  }, []);
+
+  const { hasEvidence, isVideo, isImage } = useMemo(
+    () => mediaContext({ preview, previewOriginal, storagePath, mediaType }),
+    [preview, previewOriginal, storagePath, mediaType],
+  );
+
+  const toolGroups = useMemo(
+    () => examinationToolGroups({ preview, previewOriginal, storagePath, mediaType }),
+    [preview, previewOriginal, storagePath, mediaType],
+  );
+
+  useEffect(() => {
+    if (!hasEvidence || !selectedFilter) return;
+    const allowed = filtersForMediaType(filters, mediaType, true);
+    if (!allowed.some((f) => f.id === selectedFilter.id)) {
+      setSelectedFilter(null);
+    }
+  }, [mediaType, hasEvidence, filters, selectedFilter]);
+
   const forensicFilters = useMemo(() => {
     const q = filterSearch.toLowerCase();
-    let list = filters.filter((f) => f.implemented);
-    if (!list.length) list = filters;
+    let list = filtersForMediaType(filters, mediaType, hasEvidence);
     if (!q) return list;
     return list.filter((f) => f.name.toLowerCase().includes(q) || f.id.includes(q));
-  }, [filters, filterSearch]);
+  }, [filters, filterSearch, mediaType, hasEvidence]);
+
+  const filterScope = useMemo(
+    () => filterScopeSummary(filters, mediaType, hasEvidence),
+    [filters, mediaType, hasEvidence],
+  );
+
+  const filterDomainLabel = (domain) => {
+    if (domain === 'video') return 'VID';
+    if (domain === 'both') return 'BOTH';
+    return 'IMG';
+  };
 
   const filterLabel = useCallback(
     (id) => filters.find((f) => f.id === id)?.name || id,
     [filters],
   );
 
+  const caseLabel = forensicCase?.display_id || forensicCase?.case_number || forensicCase?.case_id || '—';
+
   const handlePreview = (data) => {
     if (data.preview) setPreview(previewDataUrl(data.preview));
     if (data.preview_original) {
       setPreviewOriginal(previewDataUrl(data.preview_original));
-    } else if (data.preview && !data.filter_chain?.length) {
+    } else if (data.preview && !data.is_enhanced && !(data.filter_chain?.length)) {
       setPreviewOriginal(previewDataUrl(data.preview));
     }
     if (data.filter_chain) setFilterChain(data.filter_chain);
+    else if (data.is_enhanced === false) setFilterChain([]);
   };
+
+  const handleCaseSubmit = useCallback(async (event) => {
+    event.preventDefault();
+    const nextCaseId = caseDraft.trim();
+    if (!nextCaseId) {
+      reportError('Enter a case ID before starting a case.', 'Case');
+      return;
+    }
+    if (nextCaseId === caseLabel) {
+      setStatus(`Active case: ${nextCaseId}`);
+      return;
+    }
+    setCaseSubmitting(true);
+    try {
+      const created = await api.forensicsCreateCase({
+        case_number: nextCaseId,
+        title: forensicCase?.title || 'New Examination',
+        examiner: forensicCase?.examiner || 'Examiner',
+        agency: forensicCase?.agency || '',
+      });
+      setForensicCase(created);
+      setCustody([]);
+      reportSuccess(`Active case set: ${created.display_id || created.case_number || nextCaseId}`);
+    } catch (e) {
+      reportError(e, 'Case setup failed');
+    } finally {
+      setCaseSubmitting(false);
+    }
+  }, [caseDraft, caseLabel, forensicCase, reportError, reportSuccess]);
+
+  const updateGridOverlay = useCallback((patch) => {
+    setGridOverlay((prev) => {
+      const next = { ...prev, ...patch };
+      saveGridOverlaySettings(next);
+      return next;
+    });
+  }, []);
+
+  const updateTimestampSettings = useCallback((next) => {
+    setTimestampSettings(next);
+    saveTimestampSettings(next);
+  }, []);
+
+  const timestampContext = useMemo(() => ({
+    seekTime,
+    fps: timeline?.fps || videoMeta?.fps || videoInfo?.fps || 30,
+    frameIndex,
+    mediaType,
+  }), [seekTime, timeline?.fps, videoMeta?.fps, videoInfo?.fps, frameIndex, mediaType]);
+
+  const handleRegionChange = useCallback((patch) => {
+    if (patch.regionStart != null) setRegionStart(patch.regionStart);
+    if (patch.regionEnd != null) setRegionEnd(patch.regionEnd);
+    setRegionAnalysis(null);
+  }, []);
 
   const applyToSession = useCallback((data, message, options = {}) => {
     const shouldOpen = options.openLab !== undefined ? options.openLab : autoOpenLab;
@@ -220,6 +397,46 @@ export default function ForensicApp() {
     }
   }, [autoOpenLab, page]);
 
+  const burnGridOverlay = useCallback(async () => {
+    if (!sessionId) return;
+    setGridBurning(true);
+    try {
+      let timestampText = '';
+      if (gridOverlay.burnTimestamp) {
+        timestampText = resolveTimestampText(
+          { ...timestampSettings, enabled: true },
+          timestampContext,
+        );
+      }
+      const payload = overlayBurnPayload(
+        gridOverlay.preset,
+        timestampText,
+        timestampSettings.position,
+      );
+      const r = await api.capOverlay(sessionId, payload);
+      applyToSession(r, 'Grid burned into frame', { openLab: false });
+      reportSuccess('Grid overlay burned into examination frame');
+    } catch (e) {
+      reportError(e, 'Grid burn-in failed');
+    } finally {
+      setGridBurning(false);
+    }
+  }, [sessionId, gridOverlay, timestampSettings, timestampContext, applyToSession, reportSuccess, reportError]);
+
+  const burnTimestamp = useCallback(async (payload) => {
+    if (!sessionId) return;
+    setTimestampBurning(true);
+    try {
+      const r = await api.capOverlay(sessionId, payload);
+      applyToSession(r, 'Timestamp burned into frame', { openLab: false });
+      reportSuccess('Timestamp burned into examination frame');
+    } catch (e) {
+      reportError(e, 'Timestamp burn-in failed');
+    } finally {
+      setTimestampBurning(false);
+    }
+  }, [sessionId, applyToSession, reportSuccess, reportError]);
+
   const syncCapPreviewToSession = useCallback(async (capResult, timeSec, message) => {
     const path = exportForm.input_path || storagePath;
     const samePath = sessionId && storagePath && path
@@ -231,7 +448,7 @@ export default function ForensicApp() {
         setSeekTime(timeSec);
         return;
       } catch (e) {
-        setError(e.message);
+        reportError(e, 'Seek failed');
       }
     }
     applyToSession(capResult, message || 'Preview updated — open Examination Lab to sync pipeline', {
@@ -239,12 +456,13 @@ export default function ForensicApp() {
     });
   }, [sessionId, storagePath, exportForm.input_path, autoOpenLab, applyToSession]);
 
-  const showWorkflowBar = !['examine', 'capture', 'settings'].includes(page);
+  const showWorkflowBar = !['command', 'examine', 'capture', 'settings'].includes(page);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
+    setPreviewOriginal(null);
     setPreview(URL.createObjectURL(file));
     try {
       let sid = sessionId;
@@ -281,33 +499,53 @@ export default function ForensicApp() {
           setTimeline(r);
           setVideoMeta({ ...(data.metadata || {}), duration: r.duration, fps: r.fps, vfr: r.vfr });
           setVideoInfo({ duration: r.duration, fps: r.fps, frame_count: r.frame_sample_count });
+          if (r.duration) {
+            setRegionStart(0);
+            setRegionEnd(r.duration);
+          }
         } catch { /* optional */ }
         finally { setTimelineLoading(false); }
       }
       const kind = data.media_type === 'video' ? 'Video' : 'Image';
-      setStatus(`${kind} ingested: ${file.name}`);
+      reportSuccess(`${kind} ingested: ${file.name}`);
     } catch (err) {
-      setError(err.message);
+      reportError(err, 'Upload failed');
     }
     e.target.value = '';
   };
 
   const applyFilter = async () => {
-    if (!selectedFilter || !sessionId) return setError('Select filter and load evidence');
+    if (!sessionId) return reportError('Session not ready — wait a moment or refresh the page.', 'Filter');
+    if (!selectedFilter) return reportError('Select a filter from the list first.', 'Filter');
+    if (!preview && !previewOriginal) {
+      return reportError('Load evidence first — use Browse or Load by Path.', 'Filter');
+    }
+    if (!selectedFilter.implemented) {
+      notify(`"${selectedFilter.name}" is catalog-only. Use a FORENSIC filter for reliable results.`, 'warn');
+    }
+    setFilterApplying(true);
     try {
       const data = await api.forensicsApplyFilter(sessionId, selectedFilter.id);
       applyToSession(data, `Applied: ${selectedFilter.name}`, { openLab: false });
+      notify(`Applied: ${selectedFilter.name}`, 'success');
+      setError('');
     } catch (e) {
-      setError(e.message);
+      reportError(e, `Filter "${selectedFilter.name}" failed`);
+    } finally {
+      setFilterApplying(false);
     }
   };
 
   const resetEnhancement = async () => {
-    if (!sessionId) return;
-    const data = await api.forensicsReset(sessionId);
-    handlePreview(data);
-    setFilterChain([]);
-    setStatus('Restored to original master frame (non-destructive)');
+    if (!sessionId) return reportError('No active session.', 'Reset');
+    try {
+      const data = await api.forensicsReset(sessionId);
+      handlePreview(data);
+      setFilterChain([]);
+      reportSuccess('Restored to original master frame');
+    } catch (e) {
+      reportError(e, 'Reset failed');
+    }
   };
 
   const removeFilterAt = async (index) => {
@@ -315,9 +553,9 @@ export default function ForensicApp() {
     try {
       const data = await api.forensicsRemoveFilter(sessionId, index);
       handlePreview(data);
-      setStatus(`Removed: ${filterLabel(data.removed_filter_id || filterChain[index])}`);
+      reportSuccess(`Removed: ${filterLabel(data.removed_filter_id || filterChain[index])}`);
     } catch (e) {
-      setError(e.message);
+      reportError(e, 'Remove filter failed');
     }
   };
 
@@ -332,7 +570,7 @@ export default function ForensicApp() {
       setCurrentFrameMeta(f);
       if (videoRef.current) videoRef.current.currentTime = f.pts;
       setStatus(`Frame #${f.index} (${f.type}) @ ${f.pts.toFixed(3)}s`);
-    } catch (e) { setError(e.message); }
+    } catch (e) { reportError(e, 'Seek frame failed'); }
   };
 
   const stepFrame = async (delta, useIframe = false) => {
@@ -347,7 +585,7 @@ export default function ForensicApp() {
       }
       if (videoRef.current) videoRef.current.currentTime = r.time_sec;
       setStatus(`Frame #${r.frame_index} @ ${r.time_sec?.toFixed(3)}s`);
-    } catch (e) { setError(e.message); }
+    } catch (e) { reportError(e, 'Frame step failed'); }
   };
 
   const playbackFps = timeline?.fps || videoMeta?.fps || videoInfo?.fps || 30;
@@ -372,16 +610,17 @@ export default function ForensicApp() {
   }, [playback, t]);
 
   const buildTimeline = async (forceRefresh = false) => {
-    if (!storagePath) return setError('Load video first');
+    if (!storagePath) return reportError('Load video evidence first.', 'Timeline');
     setTimelineLoading(true);
     setError('');
     try {
       const r = await api.timelineBuild(storagePath, 25000, forceRefresh);
       setTimeline(r);
       setVideoMeta((m) => ({ ...m, duration: r.duration, fps: r.fps, vfr: r.vfr }));
+      if (r.duration) setRegionEnd(r.duration);
       const q = r.index_quality === 'forensic' ? 'FORENSIC' : 'STANDARD';
       setStatus(`${q} index: ${r.frame_sample_count?.toLocaleString()} frames · I:${r.summary?.I} P:${r.summary?.P} B:${r.summary?.B}${r.from_cache ? ' (cache)' : ''}`);
-    } catch (e) { setError(e.message); }
+    } catch (e) { reportError(e, 'Timeline build failed'); }
     finally { setTimelineLoading(false); }
   };
 
@@ -399,14 +638,22 @@ export default function ForensicApp() {
       const r = await api.seekVideo(sessionId, t);
       handlePreview(r);
       setFrameIndex(r.frame_index ?? frameIdxHint ?? near?.index ?? 0);
-    } catch { /* scrub only */ }
+    } catch (e) {
+      notify(formatApiError(e, 'Seek failed'), 'warn');
+    }
   };
 
   const handleBookmarkApplyFilter = useCallback(async (filterId, params = {}) => {
     if (!sessionId) throw new Error(t('bookmark.need_session', 'Open Examination Lab with loaded evidence to jump'));
-    const data = await api.forensicsApplyFilter(sessionId, filterId, params);
-    applyToSession(data, `${t('bookmark.jumped', 'Jumped to bookmark')}: ${filterLabel(filterId)}`, { openLab: false });
-  }, [sessionId, applyToSession, filterLabel, t]);
+    try {
+      const data = await api.forensicsApplyFilter(sessionId, filterId, params);
+      applyToSession(data, `${t('bookmark.jumped', 'Jumped to bookmark')}: ${filterLabel(filterId)}`, { openLab: false });
+      notify(`${t('bookmark.jumped', 'Jumped to bookmark')}: ${filterLabel(filterId)}`, 'success');
+    } catch (e) {
+      reportError(e, `Bookmark filter "${filterLabel(filterId)}" failed`);
+      throw e;
+    }
+  }, [sessionId, applyToSession, filterLabel, t, notify, reportError]);
 
   const loadCustody = async () => {
     if (!forensicCase?.case_id) return;
@@ -442,19 +689,62 @@ export default function ForensicApp() {
     [storagePath, evidenceId, sessionId],
   );
 
-  const caseLabel = forensicCase?.display_id || forensicCase?.case_number || forensicCase?.case_id || '—';
+  const currentPageLabel = useMemo(() => {
+    const item = NAV_KEYS.find((n) => n.id === page);
+    return item ? t(item.key, item.id) : page;
+  }, [page, t]);
 
   const mediaIdLabel = () => {
     const id = storagePath || mediaPath || '—';
     return id.length > 40 ? `…${id.slice(-36)}` : id;
   };
 
+  const renderFilterPipeline = (variant = '') => (
+    <div className={`fx-pipeline ${variant}`.trim()}>
+      {filterChain.length === 0 && (
+        <span className="fx-pipeline-empty">No filters applied</span>
+      )}
+      {filterChain.map((id, index) => {
+        const label = filterLabel(id);
+        return (
+          <span key={`${id}-${index}`} className="fx-pipeline-chip">
+            <span className="fx-pipeline-step">{index + 1}</span>
+            <span className="fx-pipeline-label" title={label}>{label}</span>
+            <button
+              type="button"
+              className="fx-pipeline-remove"
+              title={`Remove ${label}`}
+              aria-label={`Remove filter ${label}`}
+              onClick={() => removeFilterAt(index)}
+            >
+              ×
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className={`fx-app${blockingOverlay ? ' fx-app-blocked' : ''}`}>
-      <aside className="fx-sidebar">
+    <div className={`fx-app${blockingOverlay ? ' fx-app-blocked' : ''}${sidebarCollapsed ? ' fx-app--sidebar-collapsed' : ''}`}>
+      <aside className={`fx-sidebar${sidebarCollapsed ? ' fx-sidebar--collapsed' : ''}`}>
+        <button
+          type="button"
+          className="fx-sidebar-toggle"
+          aria-label={sidebarCollapsed ? t('nav.expand', 'Expand navigation') : t('nav.collapse', 'Collapse navigation')}
+          title={sidebarCollapsed ? t('nav.expand', 'Expand navigation') : t('nav.collapse', 'Collapse navigation')}
+          onClick={() => {
+            setSidebarCollapsed((c) => {
+              const next = !c;
+              localStorage.setItem('chakshu.sidebarCollapsed', next ? '1' : '0');
+              return next;
+            });
+          }}
+        >
+          {sidebarCollapsed ? '›' : '‹'}
+        </button>
         <div className="fx-brand">
-          <h1>{PRODUCT_FULL}</h1>
-          <p>{t('app.tagline', 'Digital Media Examination Platform')}</p>
+          <BrandMark variant="sidebar" />
         </div>
         <nav className="fx-nav">
           {NAV_KEYS.map((n) => (
@@ -463,8 +753,12 @@ export default function ForensicApp() {
               type="button"
               className={`fx-nav-btn ${page === n.id ? 'active' : ''}`}
               onClick={() => setPage(n.id)}
+              title={t(n.key, n.id)}
+              aria-label={t(n.key, n.id)}
+              aria-current={page === n.id ? 'page' : undefined}
             >
-              {t(n.key, n.id)}
+              <span className="fx-nav-icon" aria-hidden>{n.icon}</span>
+              <span className="fx-nav-label">{t(n.key, n.id)}</span>
             </button>
           ))}
         </nav>
@@ -476,23 +770,84 @@ export default function ForensicApp() {
         />
       </aside>
 
-      <div className="fx-workspace">
+      <div className={`fx-workspace${notesCollapsed ? '' : ' fx-workspace--notes-open'}`}>
       <div className="fx-main-column">
       <div className="fx-main">
         <header className="fx-topbar">
-          <div>
-            <strong>{forensicCase?.title || 'Examination'}</strong>
-            <span className="case-id" style={{ marginLeft: 12 }} title={forensicCase?.case_id}>{caseLabel}</span>
+          <div className="fx-topbar-primary">
+            <div className="fx-topbar-brandline">
+              <button
+                type="button"
+                className="fx-topbar-menu-btn"
+                aria-label={sidebarCollapsed ? t('nav.expand', 'Expand navigation') : t('nav.collapse', 'Collapse navigation')}
+                onClick={() => {
+                  setSidebarCollapsed((c) => {
+                    const next = !c;
+                    localStorage.setItem('chakshu.sidebarCollapsed', next ? '1' : '0');
+                    return next;
+                  });
+                }}
+              >
+                ☰
+              </button>
+              <BrandMark variant="sidebar" className="fx-topbar-brandmark" />
+            </div>
+            <div className="fx-topbar-context">
+              <form className="fx-case-workflow" onSubmit={handleCaseSubmit}>
+                <label className="fx-case-workflow-label" htmlFor="fx-active-case-id">
+                  {t('case.id', 'Case ID')}
+                </label>
+                <input
+                  id="fx-active-case-id"
+                  className="fx-case-workflow-input"
+                  value={caseDraft}
+                  onChange={(e) => setCaseDraft(e.target.value)}
+                  placeholder="CHK-20260706-001"
+                  aria-label={t('case.id', 'Case ID')}
+                />
+                <button
+                  type="submit"
+                  className="fx-case-workflow-submit"
+                  disabled={caseSubmitting || !caseDraft.trim()}
+                >
+                  {caseSubmitting ? t('case.setting', 'Setting') : t('case.set', 'Set')}
+                </button>
+              </form>
+              <div className="fx-topbar-meta">
+                <strong>{forensicCase?.title || 'Examination'}</strong>
+                <span className="case-id" title={forensicCase?.case_id}>{caseLabel}</span>
+              </div>
+            </div>
+            <div className="fx-topbar-actions">
+              <button
+                type="button"
+                className="fx-topbar-icon-btn"
+                onClick={() => setPage('settings')}
+                aria-label={t('nav.settings', 'Settings')}
+                title={t('nav.settings', 'Settings')}
+              >
+                ⚙
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="fx-btn" onClick={() => fileRef.current?.click()}>{t('action.ingest', 'Ingest Evidence')}</button>
-            <button type="button" className="fx-btn fx-btn-primary" onClick={() => setPage('examine')}>{t('action.examination_lab', 'Examination Lab')}</button>
-          </div>
+          <nav className="fx-topbar-nav" aria-label={t('nav.primary', 'Primary navigation')}>
+            {NAV_KEYS.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                className={`fx-topbar-nav-btn ${page === n.id ? 'active' : ''}`}
+                onClick={() => setPage(n.id)}
+                aria-current={page === n.id ? 'page' : undefined}
+              >
+                {t(n.key, n.id)}
+              </button>
+            ))}
+          </nav>
         </header>
 
         <ExamCompareDock
           visible={showWorkflowBar}
-          originalSrc={previewOriginal || preview}
+          originalSrc={previewOriginal}
           enhancedSrc={preview}
           filterChain={filterChain}
           filterLabel={filterLabel}
@@ -500,11 +855,12 @@ export default function ForensicApp() {
           pathLabel={mediaIdLabel()}
           hasPreview={Boolean(preview)}
           mediaType={mediaType}
+          isEnhanced={filterChain.length > 0}
           showOriginal={showOriginalPreview}
-          onShowOriginalChange={(v) => {
+          onShowOriginalChange={hasEvidence ? (v) => {
             setShowOriginalPreview(v);
             localStorage.setItem('chakshu.showOriginalPreview', v ? '1' : '0');
-          }}
+          } : undefined}
           t={t}
           autoOpenLab={autoOpenLab}
           onAutoOpenLabChange={(v) => {
@@ -513,22 +869,60 @@ export default function ForensicApp() {
           }}
           onOpenLab={() => setPage('examine')}
           onIngest={() => fileRef.current?.click()}
+          gridOverlay={hasEvidence ? gridOverlay : null}
+          onGridOverlayToggle={hasEvidence ? (v) => updateGridOverlay({ enabled: v }) : undefined}
         />
 
         {page === 'settings' && (
-          <div className="fx-content">
-            <LocaleSettings />
+          <div className="fx-content fx-settings-page">
+            <div className="fx-settings-hero">
+              <div>
+                <h2>{t('nav.settings', 'Settings')}</h2>
+                <p>{caseLabel}</p>
+              </div>
+              <button type="button" className="fx-btn" onClick={() => setPage('examine')}>
+                {t('action.examination_lab', 'Examination Lab')}
+              </button>
+            </div>
+            <div className="fx-settings-layout">
+              <LocaleSettings />
+              <ProjectStructureSettings
+                exportForm={exportForm}
+                setExportForm={setExportForm}
+                forensicCase={forensicCase}
+                t={t}
+                setStatus={setStatus}
+                setError={reportError}
+              />
+            </div>
           </div>
         )}
 
         {page === 'command' && (
-          <div className="fx-content">
-            <div className="fx-stat-row">
+          <div className="fx-content fx-command-page">
+            <section className="fx-command-summary">
+              <div>
+                <span className="fx-command-kicker">Command Center</span>
+                <h2>{caseLabel}</h2>
+                <p>{forensicCase?.title || 'New Examination'}</p>
+              </div>
+              <div className="fx-command-actions">
+                <button type="button" className="fx-btn fx-btn-primary" onClick={() => fileRef.current?.click()}>
+                  Ingest Evidence
+                </button>
+                <button type="button" className="fx-btn" onClick={() => setPage('examine')}>
+                  Examination Lab
+                </button>
+              </div>
+            </section>
+
+            <div className="fx-command-grid">
               <div className="fx-stat"><div className="val">{forensicCase?.evidence?.length || 0}</div><div className="lbl">Evidence Items</div></div>
               <div className="fx-stat"><div className="val">{filters.filter((f) => f.implemented).length}</div><div className="lbl">Forensic Filters</div></div>
               <div className="fx-stat"><div className="val">{filterChain.length}</div><div className="lbl">Pipeline Steps</div></div>
               <div className="fx-stat"><div className="val">{analysis?.summary?.I ?? '—'}</div><div className="lbl">I-Frames (last scan)</div></div>
             </div>
+
             {evidenceHash && (
               <div className="fx-panel">
                 <div className="fx-panel-head">Evidence Integrity (SHA-256)</div>
@@ -542,12 +936,20 @@ export default function ForensicApp() {
                   <div
                     key={ex.id}
                     className="cap-example-card"
+                    role="button"
+                    tabIndex={0}
                     onClick={async () => {
                       try {
                         const r = await api.capExample(ex.id);
                         setSelectedExample(r.workflow || { title: ex.title, steps: ex.steps });
                         setStatus(`Loaded example: ${ex.title}`);
                       } catch (e) { setError(e.message); }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.currentTarget.click();
+                      }
                     }}
                   >
                     <h4>{ex.title}</h4>
@@ -574,83 +976,151 @@ export default function ForensicApp() {
               filters={filters}
               onIngest={handleLiveIngest}
               onStatus={setStatus}
-              onError={setError}
+              onError={(msg) => reportError(msg, 'Capture')}
             />
           </div>
         )}
 
         {page === 'examine' && (
-          <div className="fx-content fx-grid-examine">
-            <div className="fx-panel">
-              <div className="fx-panel-head">Enhancement Pipeline</div>
+          <div className={`fx-content fx-grid-examine${hasEvidence ? ' fx-grid-examine--has-side' : ' fx-grid-examine--preview-wide'}${isVideo ? ' fx-grid-examine--video' : (hasEvidence && isImage ? ' fx-grid-examine--image' : '')}${pipelineCollapsed ? ' fx-grid-examine--pipeline-collapsed' : ''}`}>
+            <div className={`fx-panel fx-examine-pipeline${pipelineCollapsed ? ' fx-examine-pipeline--collapsed' : ''}`}>
+              <div className="fx-panel-head">
+                <span className="fx-pipeline-toggle-label">Enhancement Pipeline</span>
+                {hasEvidence && !pipelineCollapsed && (
+                  <span className={`fx-badge ${isVideo ? 'fx-badge-live' : 'fx-badge-image'}`} style={{ marginLeft: 8 }}>
+                    {isVideo ? 'VIDEO' : 'IMAGE'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="fx-pipeline-toggle"
+                  aria-label={pipelineCollapsed ? 'Expand filter pipeline' : 'Collapse filter pipeline'}
+                  title={pipelineCollapsed ? 'Expand filters' : 'Collapse filters'}
+                  onClick={() => {
+                    setPipelineCollapsed((c) => {
+                      const next = !c;
+                      localStorage.setItem('chakshu.pipelineCollapsed', next ? '1' : '0');
+                      return next;
+                    });
+                  }}
+                >
+                  {pipelineCollapsed ? '›' : '‹'}
+                </button>
+              </div>
               <div className="fx-panel-body">
                 <input className="fx-input" placeholder="Search filters…" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
-                <div style={{ display: 'flex', gap: 6, margin: '10px 0' }}>
-                  <button type="button" className="fx-btn fx-btn-primary" onClick={applyFilter} disabled={!selectedFilter}>Apply</button>
-                  <button type="button" className="fx-btn fx-btn-danger" onClick={resetEnhancement}>Reset to Original</button>
+                {!hasEvidence && (
+                  <p className="fx-filter-scope fx-filter-scope-empty">
+                    {t('filter.ingest_for_scope', 'Ingest image or video evidence — the filter list will show only filters compatible with that media type.')}
+                  </p>
+                )}
+                {hasEvidence && (
+                  <p className="fx-filter-scope">
+                    {isVideo
+                      ? t('filter.scope_video_count', `Showing ${filterScope.total} video-compatible filters (${filterScope.videoCount} video · ${filterScope.bothCount} shared)`)
+                      : t('filter.scope_image_count', `Showing ${filterScope.total} image-compatible filters (${filterScope.imageCount} image · ${filterScope.bothCount} shared)`)}
+                  </p>
+                )}
+                <div className="fx-filter-actions">
+                  <button
+                    type="button"
+                    className={`fx-btn fx-btn-primary${filterApplying ? ' fx-btn-loading' : ''}`}
+                    onClick={applyFilter}
+                    disabled={!selectedFilter || filterApplying}
+                  >
+                    {filterApplying ? 'Applying…' : 'Apply'}
+                  </button>
+                  <button type="button" className="fx-btn fx-btn-danger" onClick={resetEnhancement}>Reset</button>
                 </div>
-                <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--fx-border)', borderRadius: 6 }}>
-                  {forensicFilters.slice(0, 100).map((f) => (
+                <div className="fx-applied-pipeline">
+                  <div className="fx-applied-pipeline-head">
+                    <span>Applied filters</span>
+                    <span className="fx-applied-pipeline-count">{filterChain.length}</span>
+                  </div>
+                  {renderFilterPipeline('fx-pipeline--side')}
+                </div>
+                <div className="fx-filter-list">
+                  {!hasEvidence && (
+                    <div className="fx-filter-empty">
+                      {t('filter.waiting_evidence', 'No filters loaded — waiting for evidence')}
+                    </div>
+                  )}
+                  {forensicFilters.map((f) => (
                     <div
                       key={f.id}
                       className={`fx-filter-item ${selectedFilter?.id === f.id ? 'selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedFilter?.id === f.id}
                       onClick={() => setSelectedFilter(f)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedFilter(f);
+                        }
+                      }}
                     >
-                      <span>{f.name}</span>
-                      <span className={`fx-badge ${f.implemented ? 'fx-badge-live' : 'fx-badge-cat'}`}>
-                        {f.implemented ? 'FORENSIC' : 'CAT'}
+                      <span className="fx-filter-name">{f.name}</span>
+                      <span className="fx-filter-badges">
+                        <span className={`fx-badge fx-badge-domain fx-badge-domain-${f.domain || 'image'}`}>
+                          {filterDomainLabel(f.domain)}
+                        </span>
+                        <span className={`fx-badge ${f.implemented ? 'fx-badge-live' : 'fx-badge-cat'}`}>
+                          {f.implemented ? 'FORENSIC' : 'CAT'}
+                        </span>
                       </span>
                     </div>
                   ))}
-                </div>
-                <div className="fx-pipeline">
-                  {filterChain.length === 0 && (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--fx-muted)' }}>No filters in pipeline</span>
+                  {hasEvidence && forensicFilters.length === 0 && (
+                    <div className="fx-filter-empty">
+                      {t('filter.none_match', 'No filters match your search for this media type')}
+                    </div>
                   )}
-                  {filterChain.map((id, index) => (
-                    <span key={`${id}-${index}`} className="fx-pipeline-chip">
-                      <span className="fx-pipeline-step">{index + 1}.</span>
-                      <span className="fx-pipeline-label" title={id}>{filterLabel(id)}</span>
-                      <button
-                        type="button"
-                        className="fx-pipeline-remove"
-                        title={`Remove ${filterLabel(id)}`}
-                        aria-label={`Remove filter ${filterLabel(id)}`}
-                        onClick={() => removeFilterAt(index)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
                 </div>
+                {selectedFilter && (
+                  <p className="fx-filter-hint">
+                    {selectedFilter.description || selectedFilter.id}
+                    {!selectedFilter.implemented && ' — prefer FORENSIC-tagged filters for reliable results.'}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="fx-panel">
+            <div className="fx-panel fx-examine-preview">
               <div className="fx-panel-head">
                 Frame Examination (Non-destructive)
-                {mediaType === 'video' && <span className="fx-badge fx-badge-live" style={{ marginLeft: 8 }}>VIDEO</span>}
+                {isVideo && <span className="fx-badge fx-badge-live" style={{ marginLeft: 8 }}>VIDEO</span>}
+                {isImage && <span className="fx-badge fx-badge-image" style={{ marginLeft: 8 }}>IMAGE</span>}
               </div>
+              {hasEvidence && (
+                <div className={`fx-preview-pipeline${filterChain.length ? ' fx-preview-pipeline--active' : ''}`}>
+                  <span className="fx-preview-pipeline-title">Applied filters</span>
+                  {renderFilterPipeline('fx-pipeline--preview')}
+                </div>
+              )}
+              <div className="fx-examine-viewport">
               <CompareFrameView
-                originalSrc={previewOriginal || preview}
+                originalSrc={previewOriginal}
                 enhancedSrc={preview}
                 flash={Boolean(labFlash)}
                 variant="lab"
-                compareEnabled={mediaType === 'image'}
+                compareEnabled={hasEvidence}
+                isEnhanced={filterChain.length > 0}
                 showOriginal={showOriginalPreview}
-                onShowOriginalChange={mediaType === 'image' ? (v) => {
+                onShowOriginalChange={hasEvidence ? (v) => {
                   setShowOriginalPreview(v);
                   localStorage.setItem('chakshu.showOriginalPreview', v ? '1' : '0');
                 } : undefined}
+                gridOverlay={hasEvidence ? gridOverlay : null}
+                onGridOverlayToggle={hasEvidence ? (v) => updateGridOverlay({ enabled: v }) : undefined}
                 t={t}
               />
-              {mediaType === 'video' && storagePath && (
-                <div className="fx-panel-body" style={{ borderTop: '1px solid var(--fx-border)' }}>
+              {isVideo && storagePath && (
+                <div className="fx-examine-playback fx-examine-playback--bar">
                   <video
                     ref={videoRef}
                     src={api.mediaServeUrl(storagePath)}
-                    controls
-                    style={{ width: '100%', maxHeight: 180, background: '#000' }}
+                    className="fx-examine-playback-source"
                     onTimeUpdate={(e) => {
                       if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
                     }}
@@ -672,140 +1142,310 @@ export default function ForensicApp() {
                     disabled={!sessionId}
                     compact
                   />
-                  <div style={{ marginTop: 8 }}>
-                    <label style={{ fontSize: '0.7rem', color: 'var(--fx-muted)' }}>
-                      Scrub frame (server) — {seekTime.toFixed(2)}s
-                      {videoMeta?.duration ? ` / ${Number(videoMeta.duration).toFixed(1)}s` : ''}
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={videoMeta?.duration || videoInfo?.duration || 120}
-                      step={0.05}
-                      value={seekTime}
-                      style={{ width: '100%' }}
-                      onChange={(e) => {
-                        playback.pause();
-                        setSeekTime(Number(e.target.value));
-                      }}
-                    />
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                      <button
-                        type="button"
-                        className="fx-btn fx-btn-primary"
-                        onClick={async () => {
-                          playback.pause();
-                          try {
-                            const r = await api.seekVideo(sessionId, seekTime);
-                            handlePreview(r);
-                            setStatus(`Examining frame at ${seekTime.toFixed(2)}s`);
-                          } catch (err) { setError(err.message); }
-                        }}
-                      >
-                        Load Frame at Time
-                      </button>
-                      <button
-                        type="button"
-                        className="fx-btn"
-                        onClick={async () => {
-                          if (!storagePath) return;
-                          try {
-                            const r = await api.capSeekIframe(storagePath, seekTime);
-                            if (r.preview) setPreview(previewDataUrl(r.preview));
-                            setStatus(`I-frame near ${seekTime.toFixed(2)}s`);
-                          } catch (err) { setError(err.message); }
-                        }}
-                      >
-                        Nearest I-Frame
-                      </button>
-                    </div>
-                  </div>
-                  {!storagePath.startsWith('/') && (
-                    <p style={{ color: 'var(--fx-danger)', fontSize: '0.7rem', marginTop: 6 }}>
-                      Video tools need a saved path. Re-ingest the file or use Load by Path below.
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="fx-panel-body">
-                <div className="fx-form-row" style={{ marginBottom: 8 }}>
-                  <label style={{ color: 'var(--fx-muted)', fontSize: '0.7rem' }}>LOAD BY FULL PATH (video/image)</label>
                   <input
-                    className="fx-input"
-                    placeholder="/Users/you/Desktop/evidence.mp4"
-                    value={exportForm.input_path}
-                    onChange={(e) => setExportForm({ ...exportForm, input_path: e.target.value })}
+                    type="range"
+                    className="fx-examine-scrub"
+                    min={0}
+                    max={videoMeta?.duration || videoInfo?.duration || 120}
+                    step={0.05}
+                    value={seekTime}
+                    onChange={(e) => {
+                      playback.pause();
+                      setSeekTime(Number(e.target.value));
+                    }}
                   />
+                  <code className="fx-examine-playback-time">
+                    {seekTime.toFixed(2)}s{videoMeta?.duration ? ` / ${Number(videoMeta.duration).toFixed(1)}s` : ''}
+                  </code>
                   <button
                     type="button"
-                    className="fx-btn"
-                    style={{ marginTop: 6 }}
+                    className="fx-btn fx-btn-primary fx-btn-sm"
                     onClick={async () => {
-                      if (!sessionId || !exportForm.input_path) return;
+                      playback.pause();
                       try {
-                        const r = await api.loadMediaPath(sessionId, exportForm.input_path);
+                        const r = await api.seekVideo(sessionId, seekTime);
                         handlePreview(r);
-                        setStoragePath(r.storage_path || exportForm.input_path);
-                        setMediaType(r.media_type || 'image');
-                        setVideoMeta(r.metadata || null);
-                        setStatus(`Loaded: ${r.media_type}`);
+                        setStatus(`Examining frame at ${seekTime.toFixed(2)}s`);
                       } catch (err) { setError(err.message); }
                     }}
                   >
-                    Load Path
+                    {t('playback.load_frame', 'Load frame')}
+                  </button>
+                  <button
+                    type="button"
+                    className="fx-btn fx-btn-sm"
+                    onClick={async () => {
+                      if (!storagePath) return;
+                      try {
+                        const r = await api.capSeekIframe(storagePath, seekTime);
+                        if (r.preview) setPreview(previewDataUrl(r.preview));
+                        setStatus(`I-frame near ${seekTime.toFixed(2)}s`);
+                      } catch (err) { setError(err.message); }
+                    }}
+                  >
+                    {t('playback.nearest_iframe', 'I-frame')}
                   </button>
                 </div>
-                <AudioPlayer src={mediaType === 'video' && storagePath ? api.mediaServeUrl(storagePath) : null} label="Audio track" />
+              )}
               </div>
-            </div>
-
-            <div className="fx-panel">
-              <div className="fx-panel-head">Stream Analysis</div>
-              <div className="fx-panel-body">
-                <div className="fx-form-row" style={{ marginBottom: 10 }}>
-                  <label style={{ color: 'var(--fx-muted)', fontSize: '0.7rem' }}>VIDEO PATH (full path)</label>
-                  <input className="fx-input" value={exportForm.input_path} onChange={(e) => setExportForm({ ...exportForm, input_path: e.target.value })} />
+              {!hasEvidence && (
+                <div className="fx-tools-empty">
+                  <div className="fx-tools-empty-icon" aria-hidden>⧉</div>
+                  <p className="fx-tools-empty-title">{t('tools.empty_title', 'No evidence loaded')}</p>
+                  <p className="fx-tools-empty-sub">
+                    {t('tools.empty_sub', 'Ingest an image or video — enhancement, overlay and geometry tools relevant to that media type will appear here.')}
+                  </p>
+                  <button type="button" className="fx-btn fx-btn-primary" onClick={() => fileRef.current?.click()}>
+                    {t('action.ingest', 'Ingest Evidence')}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="fx-btn"
-                  onClick={async () => {
-                    try {
-                      const r = await api.forensicsAnalyzeVideo(exportForm.input_path);
-                      setAnalysis(r);
-                      setStatus(`I:${r.summary?.I} P:${r.summary?.P} B:${r.summary?.B}`);
-                    } catch (e) { setError(e.message); }
-                  }}
-                >
-                  Analyze I/P/B Frames
-                </button>
-                {analysis && (
-                  <table className="fx-table" style={{ marginTop: 12 }}>
-                    <tbody>
-                      {Object.entries(analysis.summary || {}).map(([k, v]) => (
-                        <tr key={k}><td>{k}</td><td>{v}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              )}
             </div>
 
-            <BookmarksPanel
-              t={t}
-              mediaPath={exportForm.input_path || storagePath}
-              sessionId={sessionId}
-              frameIndex={frameIndex}
-              timeSec={seekTime}
-              selectedFilter={selectedFilter}
-              filterChain={filterChain}
-              filterLabel={filterLabel}
-              onSeek={seekToTime}
-              onApplyFilter={handleBookmarkApplyFilter}
-              setStatus={setStatus}
-              setError={setError}
-              notify={notify}
-            />
+            {hasEvidence && (
+              <div className={isVideo ? 'fx-examine-tools-rail' : 'fx-examine-tools-scroll'}>
+              {isVideo && (
+                <div className="fx-examine-tools-rail-head">{t('tools.panel_title', 'Examination tools')}</div>
+              )}
+              {toolGroups.overlays && (
+              <div className="fx-tool-stack">
+                <details className="fx-tool-group">
+                  <summary className="fx-tool-group-head">
+                    <span className="fx-tool-group-title">{t('tools.overlays', 'Overlays & annotation')}</span>
+                    <span className="fx-tool-group-scope">{t('tools.scope_both', 'Image & video')}</span>
+                  </summary>
+                  <div className="fx-tool-group-body">
+              <GridOverlayPanel
+                settings={gridOverlay}
+                onChange={updateGridOverlay}
+                onBurnIn={burnGridOverlay}
+                burning={gridBurning}
+                disabled={!hasEvidence}
+                sessionId={sessionId}
+                t={t}
+              />
+              <TimestampEditorPanel
+                settings={timestampSettings}
+                onChange={updateTimestampSettings}
+                onApply={burnTimestamp}
+                applying={timestampBurning}
+                disabled={!hasEvidence}
+                sessionId={sessionId}
+                seekTime={seekTime}
+                fps={timestampContext.fps}
+                frameIndex={frameIndex}
+                mediaType={mediaType}
+                t={t}
+              />
+                  </div>
+                </details>
+                {toolGroups.geometry && (
+                <details className="fx-tool-group">
+                  <summary className="fx-tool-group-head">
+                    <span className="fx-tool-group-title">{t('tools.geometry', 'Geometry correction')}</span>
+                    <span className="fx-tool-group-scope">{t('tools.scope_both', 'Image & video')}</span>
+                  </summary>
+                  <div className="fx-tool-group-body">
+              <PerspectiveCorrectionPanel
+                imageSrc={previewOriginal || preview}
+                sessionId={sessionId}
+                mediaKey={storagePath || mediaPath || sessionId}
+                disabled={!hasEvidence}
+                onPreviewUpdate={setPreview}
+                onApplied={(data) => applyToSession(data, 'Perspective correction applied', { openLab: false })}
+                setStatus={setStatus}
+                setError={setError}
+                t={t}
+              />
+              <PanoramaConversionPanel
+                imageSrc={previewOriginal || preview}
+                sessionId={sessionId}
+                inputPath={exportForm.input_path || storagePath}
+                outputDir={exportForm.output_dir}
+                disabled={!hasEvidence}
+                onPreviewUpdate={setPreview}
+                onApplied={(data) => applyToSession(data, 'Panorama conversion applied', { openLab: false })}
+                setStatus={setStatus}
+                setError={setError}
+                notify={notify}
+                reportSuccess={reportSuccess}
+                reportError={reportError}
+                t={t}
+              />
+                  </div>
+                </details>
+                )}
+                <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
+                <details className="fx-tool-group fx-tool-group--video">
+                  <summary className="fx-tool-group-head">
+                    <span className="fx-tool-group-title">{t('tools.video', 'Video tools')}</span>
+                    <span className="fx-tool-group-scope fx-tool-group-scope--video">{t('tools.scope_video', 'Video only')}</span>
+                  </summary>
+                  <div className="fx-tool-group-body">
+              <VideoOverlayComparePanel
+                leftPath={exportForm.input_path || storagePath}
+                sessionId={sessionId}
+                seekTime={seekTime}
+                duration={timeline?.duration || videoMeta?.duration || videoInfo?.duration || 0}
+                gridOverlay={gridOverlay}
+                timestampSettings={timestampSettings}
+                timestampContext={timestampContext}
+                disabled={!hasEvidence}
+                onPreviewUpdate={setPreview}
+                onApplied={(data) => applyToSession(data, 'Overlay / compare applied', { openLab: false })}
+                setStatus={setStatus}
+                setError={setError}
+                notify={notify}
+                reportSuccess={reportSuccess}
+                reportError={reportError}
+                t={t}
+              />
+              {storagePath && (
+                <TrackingStabilizePanel
+                  imageSrc={previewOriginal || preview}
+                  videoPath={exportForm.input_path || storagePath}
+                  outputDir={exportForm.output_dir}
+                  sessionId={sessionId}
+                  compactRail={isVideo}
+                  onSeekFrame={sessionId ? async (timeSec) => {
+                    playback.pause();
+                    const r = await api.seekVideo(sessionId, timeSec);
+                    handlePreview(r);
+                    return r;
+                  } : undefined}
+                  seekTime={seekTime}
+                  duration={timeline?.duration || videoMeta?.duration || videoInfo?.duration || 0}
+                  disabled={!hasEvidence}
+                  setStatus={setStatus}
+                  setError={setError}
+                  notify={notify}
+                  reportSuccess={reportSuccess}
+                  reportError={reportError}
+                  t={t}
+                />
+              )}
+                  </div>
+                </details>
+                </MediaTypeGate>
+              </div>
+            )}
+              </div>
+            )}
+
+            {hasEvidence && (
+              <div className="fx-examine-side">
+                <div className="fx-panel fx-examine-evidence">
+                  <div className="fx-panel-head">{t('evidence.load_path', 'Evidence path')}</div>
+                  <div className="fx-panel-body">
+                    <label className="fx-field">
+                      <span className="fx-field-label">{t('evidence.full_path', 'Full path (video / image)')}</span>
+                      <input
+                        className="fx-input fx-input-mono"
+                        placeholder="/Users/you/Desktop/evidence.mp4"
+                        value={exportForm.input_path}
+                        onChange={(e) => setExportForm({ ...exportForm, input_path: e.target.value })}
+                      />
+                    </label>
+                    <div className="fx-action-row">
+                      <button
+                        type="button"
+                        className="fx-btn fx-btn-primary"
+                        disabled={!sessionId || !exportForm.input_path}
+                        onClick={async () => {
+                          if (!sessionId || !exportForm.input_path) return;
+                          try {
+                            const r = await api.loadMediaPath(sessionId, exportForm.input_path);
+                            handlePreview(r);
+                            setStoragePath(r.storage_path || exportForm.input_path);
+                            setMediaType(r.media_type || 'image');
+                            setVideoMeta(r.metadata || null);
+                            setStatus(`Loaded: ${r.media_type}`);
+                          } catch (err) { setError(err.message); }
+                        }}
+                      >
+                        {t('evidence.load_path_btn', 'Load path')}
+                      </button>
+                    </div>
+                    <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
+                      <AudioPlayer src={storagePath ? api.mediaServeUrl(storagePath) : null} label="Audio track" compact />
+                    </MediaTypeGate>
+                  </div>
+                </div>
+                <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
+                  <RegionAnalysisPanel
+                    mediaPath={exportForm.input_path || storagePath}
+                    regionStart={regionStart}
+                    regionEnd={regionEnd}
+                    onRegionChange={handleRegionChange}
+                    seekTime={seekTime}
+                    duration={timeline?.duration || videoMeta?.duration || videoInfo?.duration || 0}
+                    fps={timestampContext.fps}
+                    regionAnalysis={regionAnalysis}
+                    onAnalysis={setRegionAnalysis}
+                    onSeek={seekToTime}
+                    t={t}
+                    setStatus={setStatus}
+                    setError={setError}
+                    compact
+                  />
+                  <div className="fx-panel fx-examine-stream">
+                    <div className="fx-panel-head">{t('stream.title', 'Stream analysis')}</div>
+                    <div className="fx-panel-body">
+                      <p className="fx-export-hint">
+                        {t('stream.hint', 'Analyze I/P/B frame distribution for the loaded evidence path.')}
+                      </p>
+                      <p className="fx-path-snippet" title={exportForm.input_path || storagePath}>
+                        {exportForm.input_path || storagePath || '—'}
+                      </p>
+                      <div className="fx-action-row">
+                        <button
+                          type="button"
+                          className="fx-btn fx-btn-primary"
+                          disabled={!exportForm.input_path && !storagePath}
+                          onClick={async () => {
+                            const path = exportForm.input_path || storagePath;
+                            if (!path) return;
+                            try {
+                              const r = await api.forensicsAnalyzeVideo(path);
+                              setAnalysis(r);
+                              setStatus(`I:${r.summary?.I} P:${r.summary?.P} B:${r.summary?.B}`);
+                            } catch (e) { reportError(e, 'Stream analysis failed'); }
+                          }}
+                        >
+                          {t('stream.analyze', 'Analyze I/P/B frames')}
+                        </button>
+                      </div>
+                      {analysis && (
+                        <table className="fx-table" style={{ marginTop: 12 }}>
+                          <tbody>
+                            {Object.entries(analysis.summary || {}).map(([k, v]) => (
+                              <tr key={k}><td>{k}</td><td>{v}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </MediaTypeGate>
+
+                <BookmarksPanel
+                  t={t}
+                  mediaPath={exportForm.input_path || storagePath}
+                  mediaType={mediaType}
+                  sessionId={sessionId}
+                  frameIndex={frameIndex}
+                  timeSec={seekTime}
+                  selectedFilter={selectedFilter}
+                  filterChain={filterChain}
+                  filterLabel={filterLabel}
+                  onSeek={isVideo ? seekToTime : undefined}
+                  onApplyFilter={handleBookmarkApplyFilter}
+                  setStatus={setStatus}
+                  setError={reportError}
+                  notify={notify}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -834,7 +1474,7 @@ export default function ForensicApp() {
                       style={{ width: 80 }}
                     />
                   </div>
-                  {mediaType === 'video' && (
+                  {isVideo && (
                     <div>
                       <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Δt for speed (sec)</label>
                       <input
@@ -862,164 +1502,77 @@ export default function ForensicApp() {
                   deltaTimeSec={calibration.deltaTime}
                   onPreviewUpdate={setPreview}
                   onStatus={setStatus}
-                  onError={setError}
+                  onError={(msg) => reportError(msg, 'Markup')}
                 />
               </div>
             </div>
           </div>
         )}
 
-        {page === 'timeline' && (
-          <div className="fx-content ftl-page">
-            <ForensicTimeline
-              timeline={timeline}
-              currentTime={seekTime}
-              loading={timelineLoading}
-              onSeek={seekToTime}
-              onRegionSelect={(a, b) => {
-                setRegionStart(Math.round(a * 100) / 100);
-                setRegionEnd(Math.round(b * 100) / 100);
-                setRegionAnalysis(null);
-              }}
-            />
-            <div className="ftl-studio">
-              <div>
-                <div className="ftl-viewer">
-                  {preview ? (
-                    <img src={preview} alt="Frame" />
-                  ) : storagePath ? (
-                    <video
-                      ref={videoRef}
-                      src={api.mediaServeUrl(storagePath)}
-                      controls
-                      style={{ width: '100%', height: '100%' }}
-                      onTimeUpdate={(e) => {
-                        if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
-                      }}
-                      onPlay={() => {
-                        if (playback.direction === 'reverse') videoRef.current?.pause();
-                      }}
-                    />
-                  ) : (
-                    <span style={{ color: '#555' }}>Load video evidence</span>
-                  )}
-                </div>
-              </div>
-              <div className="ftl-side-card">
-                <div className="ftl-transport">
-                  <button type="button" className="fx-btn fx-btn-primary" onClick={() => buildTimeline(false)} disabled={!storagePath || timelineLoading}>
-                    Deep Index
-                  </button>
-                  <button type="button" className="fx-btn" onClick={() => buildTimeline(true)} disabled={!storagePath || timelineLoading} title="Rebuild index">↻</button>
-                </div>
-                <ForensicVideoTransport
-                  t={t}
-                  direction={playback.direction}
-                  speed={playback.speed}
-                  onSpeedChange={playback.setSpeed}
-                  onPlayForward={playback.playForward}
-                  onPlayReverse={handlePlayReverse}
-                  onPause={playback.pause}
-                  onStepBack={() => { playback.pause(); stepFrame(-1); }}
-                  onStepForward={() => { playback.pause(); stepFrame(1); }}
-                  onStepIframe={() => { playback.pause(); stepFrame(1, true); }}
-                  disabled={!sessionId}
-                />
-                <div className="ftl-frame-meta">
-                  <div><strong>Timecode</strong> {formatTc(seekTime, timeline?.fps || 30)}</div>
-                  <div><strong>Frame</strong> #{frameIndex}{currentFrameMeta ? ` · ${currentFrameMeta.type}` : ''}</div>
-                  <div><strong>PTS</strong> {seekTime.toFixed(4)}s</div>
-                  {currentFrameMeta?.size && <div><strong>Size</strong> {currentFrameMeta.size} B</div>}
-                  <div style={{ marginTop: 10 }}><strong>Evidence</strong><br />{mediaIdLabel()}</div>
-                </div>
-                <div style={{ marginTop: 14 }}>
-                  <div className="ftl-section-label">Region Analysis</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="number" className="fx-input" value={regionStart} onChange={(e) => setRegionStart(Number(e.target.value))} step="0.1" />
-                    <input type="number" className="fx-input" value={regionEnd} onChange={(e) => setRegionEnd(Number(e.target.value))} step="0.1" />
-                  </div>
-                  <button type="button" className="fx-btn fx-btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={async () => {
-                    try {
-                      const r = await api.timelineRegion(storagePath, regionStart, regionEnd);
-                      setRegionAnalysis(r);
-                    } catch (e) { setError(e.message); }
-                  }}>Analyze Region</button>
-                  {regionAnalysis && (
-                    <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--fx-muted)', fontFamily: 'var(--fx-mono)' }}>
-                      {regionAnalysis.frame_count} frames · I:{regionAnalysis.types?.I ?? 0} P:{regionAnalysis.types?.P ?? 0} B:{regionAnalysis.types?.B ?? 0}
-                    </div>
-                  )}
-                </div>
-                <div style={{ marginTop: 14 }}>
-                  <div className="ftl-section-label">Audio &amp; Sync</div>
-                  <div className="ftl-audio-row">
-                    <button type="button" className="fx-btn" onClick={async () => {
-                      try {
-                        const r = await api.timelineAudioChannels(storagePath);
-                        setAudioChannels(r);
-                      } catch (e) { setError(e.message); }
-                    }}>Probe</button>
-                    <button type="button" className="fx-btn" onClick={async () => {
-                      try {
-                        const r = await api.timelineAvOffset(storagePath);
-                        setStatus(`A/V offset: ${r.recommendation_ms} ms`);
-                      } catch (e) { setError(e.message); }
-                    }}>A/V Offset</button>
-                  </div>
-                  {audioChannels?.streams?.map((s, i) => (
-                    <div key={i} style={{ fontSize: '0.68rem', marginTop: 6, color: 'var(--fx-muted)' }}>
-                      Ch {s.index}: {s.codec} · {s.layout} · {s.channels}ch
-                    </div>
-                  ))}
-                  <AudioPlayer src={storagePath ? api.mediaServeUrl(storagePath) : null} label="Synced audio" />
-                </div>
-                {mediaType === 'video' && storagePath && (
-                  <>
-                    <AudioRedactionPanel
-                      t={t}
-                      inputPath={exportForm.input_path || storagePath}
-                      outputDir={exportForm.output_dir}
-                      playheadSec={seekTime}
-                      selectionStart={regionStart}
-                      selectionEnd={regionEnd}
-                      setStatus={setStatus}
-                      setError={setError}
-                    />
-                    <AudioStreamPanel
-                      t={t}
-                      videoPath={exportForm.input_path || storagePath}
-                      outputDir={exportForm.output_dir}
-                      setStatus={setStatus}
-                      setError={setError}
-                      notify={notify}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
+        {page === 'timeline' && !isVideo && (
+          <div className="fx-content">
+            <MediaTypeEmpty requires="video" mediaType={mediaType} hasEvidence={hasEvidence} t={t} />
           </div>
+        )}
+
+        {page === 'timeline' && isVideo && (
+          <TimelineProPage
+            t={t}
+            timeline={timeline}
+            timelineLoading={timelineLoading}
+            seekTime={seekTime}
+            seekToTime={seekToTime}
+            regionStart={regionStart}
+            regionEnd={regionEnd}
+            onRegionChange={handleRegionChange}
+            preview={preview}
+            storagePath={storagePath}
+            videoRef={videoRef}
+            playback={playback}
+            buildTimeline={buildTimeline}
+            stepFrame={stepFrame}
+            sessionId={sessionId}
+            frameIndex={frameIndex}
+            currentFrameMeta={currentFrameMeta}
+            mediaIdLabel={mediaIdLabel}
+            regionAnalysis={regionAnalysis}
+            onRegionAnalysis={setRegionAnalysis}
+            timestampContext={timestampContext}
+            videoMeta={videoMeta}
+            audioChannels={audioChannels}
+            onAudioChannels={setAudioChannels}
+            onPlayReverse={handlePlayReverse}
+            setStatus={setStatus}
+            setError={setError}
+            onOpenTools={() => setPage('tools')}
+            onVideoTimeUpdate={setSeekTime}
+          />
         )}
 
         {page === 'tools' && (
           <div className="fx-content" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <AudioRedactionPanel
-              t={t}
-              inputPath={exportForm.input_path}
-              outputDir={exportForm.output_dir}
-              playheadSec={seekTime}
-              selectionStart={regionStart}
-              selectionEnd={regionEnd}
-              setStatus={setStatus}
-              setError={setError}
-            />
-            <AudioStreamPanel
-              t={t}
-              videoPath={exportForm.input_path || storagePath}
-              outputDir={exportForm.output_dir}
-              setStatus={setStatus}
-              setError={setError}
-              notify={notify}
-            />
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
+              <AudioRedactionPanel
+                t={t}
+                inputPath={exportForm.input_path}
+                outputDir={exportForm.output_dir}
+                playheadSec={seekTime}
+                selectionStart={regionStart}
+                selectionEnd={regionEnd}
+                setStatus={setStatus}
+                setError={reportError}
+              />
+            </MediaTypeGate>
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
+              <AudioStreamPanel
+                t={t}
+                videoPath={exportForm.input_path || storagePath}
+                outputDir={exportForm.output_dir}
+                setStatus={setStatus}
+                setError={reportError}
+                notify={notify}
+              />
+            </MediaTypeGate>
             <div className="fx-panel" style={{ gridColumn: '1 / -1' }}>
               <div className="fx-panel-head">AI / ML Enhancement (R-090, R-091)</div>
               <div className="fx-panel-body">
@@ -1069,7 +1622,8 @@ export default function ForensicApp() {
                         strength: aiStrength,
                       });
                       applyToSession(r, `AI applied: ${aiModelId || aiTool}`);
-                    } catch (e) { setError(e.message); }
+                      notify(`AI applied: ${aiModelId || aiTool}`, 'success');
+                    } catch (e) { reportError(e, 'AI enhance failed'); }
                   }}>Apply to Frame</button>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
@@ -1135,6 +1689,7 @@ export default function ForensicApp() {
                 }}>Secure Copy + Report</button>
               </div>
             </div>
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
             <div className="fx-panel">
               <div className="fx-panel-head">Video Seek & I-Frame</div>
               <div className="fx-panel-body">
@@ -1172,33 +1727,32 @@ export default function ForensicApp() {
                 }}>MPEG Macroblock Overlay</button>
               </div>
             </div>
+            </MediaTypeGate>
             <div className="fx-panel">
               <div className="fx-panel-head">Compare & Overlay</div>
               <div className="fx-panel-body">
-                <button type="button" className="fx-btn" onClick={async () => {
-                  try {
-                    const left = exportForm.input_path;
-                    const right = prompt('Second file path for comparison:', left) || left;
-                    const r = await api.capCompareCreate(left, right);
-                    setCompareId(r.session_id);
-                    setStatus('Comparison session created');
-                  } catch (e) { setError(e.message); }
-                }}>Start Side-by-Side</button>
-                {compareId && (
-                  <button type="button" className="fx-btn fx-btn-primary" style={{ marginLeft: 6 }} onClick={async () => {
-                    try {
-                      const r = await api.capCompareRender({ session_id: compareId, left_time: seekTime, right_time: seekTime });
-                      applyToSession(r, 'Comparison rendered');
-                    } catch (e) { setError(e.message); }
-                  }}>Render Compare</button>
-                )}
-                <button type="button" className="fx-btn" style={{ marginTop: 8, display: 'block' }} onClick={async () => {
+                <p className="fx-grid-hint">
+                  Full video overlay and side-by-side tools are in Examination Lab → Video overlays & side-by-side compare.
+                </p>
+                <button type="button" className="fx-btn fx-btn-primary" onClick={() => setPage('examine')}>
+                  Open Examination Lab
+                </button>
+                <button type="button" className="fx-btn" style={{ marginLeft: 6 }} disabled={!sessionId} onClick={async () => {
                   if (!sessionId) return;
                   try {
-                    const r = await api.capOverlay(sessionId, { timestamp_text: new Date().toISOString(), grid: true });
+                    const timestampText = resolveTimestampText(
+                      { ...timestampSettings, enabled: true },
+                      timestampContext,
+                    );
+                    const payload = overlayBurnPayload(
+                      gridOverlay.preset,
+                      timestampText,
+                      timestampSettings.position,
+                    );
+                    const r = await api.capOverlay(sessionId, payload);
                     applyToSession(r, 'Timestamp + grid applied');
-                  } catch (e) { setError(e.message); }
-                }}>Apply Timestamp + Grid</button>
+                  } catch (e) { reportError(e, 'Overlay apply failed'); }
+                }}>Quick: Timestamp + Grid</button>
               </div>
             </div>
             <div className="fx-panel">
@@ -1223,18 +1777,20 @@ export default function ForensicApp() {
             <BookmarksPanel
               t={t}
               mediaPath={exportForm.input_path || storagePath}
+              mediaType={mediaType}
               sessionId={sessionId}
               frameIndex={frameIndex}
               timeSec={seekTime}
               selectedFilter={selectedFilter}
               filterChain={filterChain}
               filterLabel={filterLabel}
-              onSeek={seekToTime}
+              onSeek={isVideo ? seekToTime : undefined}
               onApplyFilter={handleBookmarkApplyFilter}
               setStatus={setStatus}
-              setError={setError}
+              setError={reportError}
               notify={notify}
             />
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
             <SubtitlePanel
               t={t}
               videoPath={exportForm.input_path}
@@ -1249,10 +1805,12 @@ export default function ForensicApp() {
               onOutputPathChange={(p) => setSubtitleForm((f) => ({ ...f, output_path: p }))}
               onApplyPreview={(data, msg) => applyToSession(data, msg, { openLab: false })}
               setStatus={setStatus}
-              setError={setError}
+              setError={reportError}
               notify={notify}
               onBlockingChange={setBlocking}
             />
+            </MediaTypeGate>
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
             <div className="fx-panel">
               <div className="fx-panel-head">Stream Sync &amp; Merge (R-172 / R-173)</div>
               <div className="fx-panel-body">
@@ -1292,6 +1850,8 @@ export default function ForensicApp() {
                 }}>Concat Videos</button>
               </div>
             </div>
+            </MediaTypeGate>
+            <MediaTypeGate requires="video" mediaType={mediaType} hasEvidence={hasEvidence}>
             <div className="fx-panel">
               <div className="fx-panel-head">Advanced Video (Phase 6)</div>
               <div className="fx-panel-body">
@@ -1303,7 +1863,10 @@ export default function ForensicApp() {
                     });
                     setStatus(r.success ? `Stabilized (${r.method || 'ok'})` : (r.stderr || 'Failed'));
                   } catch (e) { setError(e.message); }
-                }}>Stabilize</button>
+                }}>Global Stabilize</button>
+                <p className="fx-grid-hint" style={{ margin: '8px 0' }}>
+                  For object-tracking stabilization, use Examination Lab → Object-tracking stabilization (draw box on object).
+                </p>
                 <button type="button" className="fx-btn" style={{ marginLeft: 6 }} onClick={async () => {
                   try {
                     const r = await api.capAdvancedReverse({
@@ -1326,6 +1889,7 @@ export default function ForensicApp() {
                 }}>Adjust FPS</button>
               </div>
             </div>
+            </MediaTypeGate>
           </div>
         )}
 
@@ -1362,9 +1926,13 @@ export default function ForensicApp() {
             sessionId={sessionId}
             forensicCase={forensicCase}
             hasPreview={Boolean(preview)}
+            mediaType={mediaType}
+            hasEvidence={hasEvidence}
+            filterChain={filterChain}
             t={t}
             setStatus={setStatus}
-            setError={setError}
+            setError={reportError}
+            notify={notify}
           />
         )}
 
@@ -1376,7 +1944,7 @@ export default function ForensicApp() {
               exportForm={exportForm}
               locale={locale}
               setStatus={setStatus}
-              setError={setError}
+              setError={reportError}
               notify={notify}
             />
           </div>
@@ -1388,11 +1956,30 @@ export default function ForensicApp() {
         </footer>
         {toasts.length > 0 && (
           <div className="fx-toast-stack" aria-live="polite">
-            {toasts.map((toast) => (
-              <div key={toast.id} className={`fx-toast fx-toast-${toast.type}`}>
-                {toast.message}
+            {toasts.map((toast) => {
+              const split = toast.message.match(/^([^:]{2,48}):\s+(.+)$/s);
+              const title = split?.[1];
+              const body = split?.[2] || toast.message;
+              return (
+              <div key={toast.id} className={`fx-toast fx-toast-${toast.type}`} role="status">
+                <span className="fx-toast-icon" aria-hidden="true">
+                  {toast.type === 'error' ? '✕' : toast.type === 'warn' ? '!' : '✓'}
+                </span>
+                <span className="fx-toast-body">
+                  {title ? <span className="fx-toast-title">{title}</span> : null}
+                  {body}
+                </span>
+                <button
+                  type="button"
+                  className="fx-toast-close"
+                  aria-label="Dismiss"
+                  onClick={() => dismissToast(toast.id)}
+                >
+                  ×
+                </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1420,8 +2007,8 @@ export default function ForensicApp() {
             return next;
           });
         }}
-        projectName={projectMeta.name || forensicCase?.title}
-        projectId={projectMeta.project_id}
+        projectName={caseLabel}
+        projectId={forensicCase?.case_id || projectMeta.project_id}
         notes={notes}
         author={forensicCase?.examiner}
         evidenceId={evidenceId}
@@ -1445,7 +2032,7 @@ export default function ForensicApp() {
       />
       </div>
 
-      <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={onUpload} />
+      <input ref={fileRef} type="file" accept="image/*,.heic,.heif,video/*" style={{ display: 'none' }} onChange={onUpload} />
       <input
         ref={aiModelFileRef}
         type="file"

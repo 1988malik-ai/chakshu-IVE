@@ -1,4 +1,5 @@
 # Run Chakshu on Mac/Linux without local Python/Node installs.
+# API serves the built React UI on port 9450 (not the dev split 9450/9451).
 # Open http://localhost:9450 after: docker compose up --build
 
 services:

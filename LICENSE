@@ -1,0 +1,61 @@
+Chakshu Forensics (AI-IVE) — Proprietary Software License
+Copyright (c) 2024–2026 Chakshu Forensics. All rights reserved.
+
+================================================================================
+DRAFT — REQUIRES LEGAL REVIEW BEFORE DISTRIBUTION
+================================================================================
+
+This document is a placeholder proprietary license notice. It is not legal advice
+and must be reviewed and approved by the copyright owner or qualified counsel
+before use in customer agreements, installers, or shrink-wrap terms.
+
+1. GRANT OF LICENSE
+   Subject to payment of applicable fees and compliance with these terms, the
+   copyright owner grants you a non-exclusive, non-transferable, revocable
+   license to install and use one copy of Chakshu Forensics (the "Software")
+   on a single machine identified by the Software's machine fingerprint, solely
+   for lawful digital media examination and related forensic workflows.
+
+2. RESTRICTIONS
+   You may not:
+   (a) copy, modify, adapt, translate, or create derivative works of the Software;
+   (b) reverse engineer, decompile, or disassemble the Software except where
+       expressly permitted by applicable law;
+   (c) remove or alter proprietary notices;
+   (d) sublicense, rent, lease, lend, sell, or distribute the Software;
+   (e) use the Software to circumvent license or trial enforcement; or
+   (f) use the Software in violation of applicable law.
+
+3. TRIAL
+   If no valid license key is activated, the Software may operate in time-limited
+   trial mode as configured by the vendor (default: 14 days from first use on
+   that machine). Trial terms may change in future releases.
+
+4. OWNERSHIP
+   The Software is licensed, not sold. All rights not expressly granted are
+   reserved by the copyright owner.
+
+5. TERMINATION
+   This license terminates automatically if you breach these terms. Upon
+   termination you must cease use and destroy all copies in your possession.
+
+6. DISCLAIMER OF WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+   FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE COPYRIGHT
+   OWNER BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+   PUNITIVE DAMAGES, OR ANY LOSS OF DATA, REVENUE, OR PROFITS, ARISING FROM
+   USE OF THE SOFTWARE.
+
+8. THIRD-PARTY COMPONENTS
+   The Software includes open-source and third-party components. See
+   THIRD_PARTY_NOTICES.md for attribution and license terms of those components.
+
+9. CONTACT
+   For licensing, activation keys, and enterprise terms, contact the vendor
+   identified in AUTHORS.md or your purchase agreement.
+
+================================================================================

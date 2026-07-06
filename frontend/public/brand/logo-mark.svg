@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Chakshu Forensics">
+  <defs>
+    <linearGradient id="iris" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0a0e15"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="url(#ring)" stroke-width="1.5" opacity="0.85"/>
+  <circle cx="32" cy="32" r="18" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.45"/>
+  <ellipse cx="32" cy="32" rx="14" ry="10" fill="url(#iris)"/>
+  <circle cx="32" cy="32" r="5" fill="#020617"/>
+  <circle cx="34" cy="30" r="1.8" fill="#e0f2fe" opacity="0.9"/>
+  <path d="M44 44 L56 56" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="44" cy="44" r="9" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+</svg>

@@ -19,23 +19,30 @@ export default function ExamCompareDock({
   mediaType = 'image',
   showOriginal = false,
   onShowOriginalChange,
+  isEnhanced = false,
+  gridOverlay = null,
+  onGridOverlayToggle,
   t = (k, d) => d,
 }) {
   if (!visible) return null;
 
   const isImage = mediaType === 'image';
+  const canCompare = Boolean(originalSrc || enhancedSrc);
 
   return (
-    <section className="fx-compare-dock" aria-label={isImage ? 'Original versus enhanced preview' : 'Frame preview'}>
+    <section className="fx-compare-dock" aria-label={canCompare ? 'Original versus enhanced preview' : 'Frame preview'}>
       <div className="fx-compare-dock-main">
         <CompareFrameView
           originalSrc={originalSrc}
           enhancedSrc={enhancedSrc}
           flash={Boolean(lastAction)}
           variant="dock"
-          compareEnabled={isImage}
+          compareEnabled={canCompare}
+          isEnhanced={isEnhanced}
           showOriginal={showOriginal}
-          onShowOriginalChange={isImage ? onShowOriginalChange : undefined}
+          onShowOriginalChange={onShowOriginalChange}
+          gridOverlay={gridOverlay}
+          onGridOverlayToggle={onGridOverlayToggle}
           t={t}
         />
       </div>
@@ -57,7 +64,7 @@ export default function ExamCompareDock({
           <p className="fx-compare-dock-hint">
             {isImage
               ? t('compare.dock_hint_image', 'Apply filters or AI tools to see enhancement vs original.')
-              : t('compare.dock_hint_video', 'Video uses full-width frame preview — scrub and load frames below in Examination Lab.')}
+              : t('compare.dock_hint_video', 'Load a frame at the playhead, then enable Show original to compare enhanced vs source. Use Video overlays panel for dual-file compare.')}
           </p>
         )}
         <label className="fx-workflow-option">

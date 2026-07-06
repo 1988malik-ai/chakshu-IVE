@@ -1,0 +1,121 @@
+.fx-compare-frame-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  line-height: 0;
+}
+
+.fx-compare-frame-wrap > img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.fx-compare-pane .fx-compare-frame-wrap,
+.fx-compare-single .fx-compare-frame-wrap,
+.fx-compare-slider-wrap .fx-compare-frame-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fx-compare-slider-wrap .fx-compare-frame-wrap.fx-compare-slider-base-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.fx-compare-slider-top .fx-compare-frame-wrap {
+  height: 100%;
+  justify-content: flex-start;
+}
+
+.fx-grid-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.fx-grid-panel {
+  border-top: 1px solid var(--fx-border);
+  background: linear-gradient(180deg, var(--fx-panel-2) 0%, rgba(18, 22, 31, 0.95) 100%);
+}
+
+.fx-grid-panel-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-grid-panel-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-grid-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--fx-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.fx-grid-toggle input {
+  accent-color: var(--fx-accent);
+}
+
+.fx-grid-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 0.68rem;
+  color: var(--fx-muted);
+}
+
+.fx-grid-field > span:first-child {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+}
+
+.fx-grid-field input[type='range'] {
+  grid-column: 1;
+  accent-color: var(--fx-accent);
+}
+
+.fx-grid-opacity-val {
+  font-size: 0.68rem;
+  color: var(--fx-accent-2);
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.fx-grid-hint {
+  margin: 0;
+  font-size: 0.65rem;
+  color: var(--fx-muted);
+  line-height: 1.4;
+}
+
+.fx-grid-burn-ts {
+  font-weight: 500;
+  font-size: 0.68rem;
+}
+
+.fx-compare-toolbar .fx-grid-quick-toggle {
+  margin-left: auto;
+}

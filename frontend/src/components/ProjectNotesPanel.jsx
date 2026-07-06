@@ -49,7 +49,13 @@ export default function ProjectNotesPanel({
   if (collapsed) {
     return (
       <aside className="fx-notes-rail fx-notes-rail-collapsed" aria-label={t('panel.notes', 'Examination Notes')}>
-        <button type="button" className="fx-notes-expand-btn" onClick={onToggleCollapse} title={t('notes.show', 'Show notes')}>
+        <button
+          type="button"
+          className="fx-notes-expand-btn"
+          onClick={onToggleCollapse}
+          title={t('notes.show', 'Show notes')}
+          aria-label={t('notes.show', 'Show notes')}
+        >
           Notes
         </button>
       </aside>
@@ -63,7 +69,13 @@ export default function ProjectNotesPanel({
           <h2>{t('panel.notes', 'Examination Notes')}</h2>
           <p className="fx-notes-sub" title={projectId}>{projectName || t('notes.project', 'Project')}</p>
         </div>
-        <button type="button" className="fx-notes-collapse-btn" onClick={onToggleCollapse} title={t('notes.hide', 'Hide notes')}>
+        <button
+          type="button"
+          className="fx-notes-collapse-btn"
+          onClick={onToggleCollapse}
+          title={t('notes.hide', 'Hide notes')}
+          aria-label={t('notes.hide', 'Hide notes')}
+        >
           ×
         </button>
       </header>

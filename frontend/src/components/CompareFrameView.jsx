@@ -1,7 +1,21 @@
 import { useState } from 'react';
+import GridOverlayLayer from './GridOverlayLayer';
+
+function FrameWithGrid({ src, alt, className, wrapperClassName = '', gridOverlay }) {
+  if (!src) return null;
+  if (!gridOverlay?.enabled) {
+    return <img src={src} alt={alt} className={className} />;
+  }
+  return (
+    <div className={`fx-compare-frame-wrap ${wrapperClassName}`.trim()}>
+      <img src={src} alt={alt} className={className} />
+      <GridOverlayLayer preset={gridOverlay.preset} opacity={gridOverlay.opacity} />
+    </div>
+  );
+}
 
 /**
- * Frame preview with optional original vs enhanced comparison (images only).
+ * Frame preview with original vs enhanced comparison and optional dual-source preview.
  */
 export default function CompareFrameView({
   originalSrc,
@@ -10,8 +24,11 @@ export default function CompareFrameView({
   variant = 'lab',
   showSliderToggle = true,
   compareEnabled = true,
+  isEnhanced = false,
   showOriginal = false,
   onShowOriginalChange,
+  gridOverlay = null,
+  onGridOverlayToggle,
   t = (k, d) => d,
 }) {
   const [mode, setMode] = useState('split');
@@ -23,9 +40,19 @@ export default function CompareFrameView({
     return (
       <div className={rootClass}>
         <div className="fx-compare-empty">
-          {compareEnabled
-            ? t('compare.ingest', 'Ingest evidence to compare original vs enhanced')
-            : t('compare.ingest_video', 'Ingest video and load a frame to preview')}
+          <div className="fx-compare-empty-art" aria-hidden="true" />
+          <div className="fx-compare-empty-copy">
+            <strong>
+              {compareEnabled
+                ? t('compare.empty_title', 'Evidence workspace ready')
+                : t('compare.frame_ready', 'Frame workspace ready')}
+            </strong>
+            <span>
+              {compareEnabled
+                ? t('compare.ingest', 'Ingest evidence to compare original vs enhanced')
+                : t('compare.ingest_video', 'Ingest video and load a frame to preview')}
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -33,8 +60,8 @@ export default function CompareFrameView({
 
   const enhanced = enhancedSrc || originalSrc;
   const original = originalSrc || enhancedSrc;
-  const identical = original === enhanced;
-  const canCompare = compareEnabled && showOriginal && !identical;
+  const identical = Boolean(originalSrc && enhancedSrc && originalSrc === enhancedSrc);
+  const canCompare = compareEnabled && showOriginal && isEnhanced && Boolean(original) && Boolean(enhanced);
   const title = compareEnabled
     ? t('compare.title', 'Original vs Enhanced')
     : t('compare.frame_preview', 'Frame preview');
@@ -71,18 +98,39 @@ export default function CompareFrameView({
             </button>
           </div>
         )}
-        {compareEnabled && showOriginal && identical && (
+        {compareEnabled && showOriginal && !isEnhanced && (
           <span className="fx-compare-hint">
             {t('compare.no_enhancement', 'No enhancement yet — apply filters or AI tools')}
           </span>
+        )}
+        {compareEnabled && showOriginal && isEnhanced && identical && (
+          <span className="fx-compare-hint">
+            {t('compare.same_preview', 'Previews match — re-apply a filter or reset and try again')}
+          </span>
+        )}
+        {onGridOverlayToggle && (
+          <label className="fx-compare-toggle fx-grid-quick-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(gridOverlay?.enabled)}
+              onChange={(e) => onGridOverlayToggle(e.target.checked)}
+            />
+            {t('grid.show', 'Show grid overlay')}
+          </label>
         )}
       </div>
 
       {canCompare && mode === 'slider' ? (
         <div className="fx-compare-slider-wrap">
-          <img src={original} alt="Original" className="fx-compare-slider-base" />
+          <FrameWithGrid
+            src={original}
+            alt="Original"
+            className="fx-compare-slider-base"
+            wrapperClassName="fx-compare-slider-base-wrap"
+            gridOverlay={gridOverlay}
+          />
           <div className="fx-compare-slider-top" style={{ width: `${sliderPos}%` }}>
-            <img src={enhanced} alt="Enhanced" />
+            <FrameWithGrid src={enhanced} alt="Enhanced" wrapperClassName="fx-compare-slider-top-wrap" gridOverlay={gridOverlay} />
           </div>
           <input
             type="range"
@@ -104,14 +152,19 @@ export default function CompareFrameView({
         <div className="fx-compare-split">
           <div className="fx-compare-pane">
             <span className="fx-compare-pane-label">{t('compare.original', 'Original')}</span>
-            <img src={original} alt="Original evidence frame" />
+            <FrameWithGrid src={original} alt="Original evidence frame" gridOverlay={gridOverlay} />
           </div>
           <div className="fx-compare-divider" aria-hidden />
           <div className="fx-compare-pane">
             <span className="fx-compare-pane-label fx-compare-pane-label-enh">
               {t('compare.enhanced', 'Enhanced')}
             </span>
-            <img src={enhanced} alt="Enhanced evidence frame" className={flash ? 'fx-workflow-flash' : ''} />
+            <FrameWithGrid
+              src={enhanced}
+              alt="Enhanced evidence frame"
+              className={flash ? 'fx-workflow-flash' : ''}
+              gridOverlay={gridOverlay}
+            />
           </div>
         </div>
       ) : (
@@ -119,7 +172,12 @@ export default function CompareFrameView({
           <span className="fx-compare-pane-label fx-compare-pane-label-enh">
             {compareEnabled ? t('compare.enhanced', 'Enhanced') : t('compare.current_frame', 'Current frame')}
           </span>
-          <img src={enhanced} alt="Evidence frame" className={flash ? 'fx-workflow-flash' : ''} />
+          <FrameWithGrid
+            src={enhanced}
+            alt="Evidence frame"
+            className={flash ? 'fx-workflow-flash' : ''}
+            gridOverlay={gridOverlay}
+          />
         </div>
       )}
     </div>

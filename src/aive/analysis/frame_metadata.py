@@ -41,7 +41,8 @@ def filter_frames(
 
 
 def region_summary(frames: list[FrameInfo], start_sec: float, end_sec: float) -> dict[str, Any]:
-    region = [f for f in frames if start_sec <= f.pts <= end_sec]
+    lo, hi = min(start_sec, end_sec), max(start_sec, end_sec)
+    region = [f for f in frames if lo <= f.pts <= hi]
     counts: dict[str, int] = {"I": 0, "P": 0, "B": 0, "?": 0}
     sizes: list[int] = []
     for f in region:
@@ -50,12 +51,22 @@ def region_summary(frames: list[FrameInfo], start_sec: float, end_sec: float) ->
         if f.size:
             sizes.append(f.size)
     return {
-        "start_sec": start_sec,
-        "end_sec": end_sec,
+        "start_sec": lo,
+        "end_sec": hi,
+        "duration_sec": max(0.0, hi - lo),
         "frame_count": len(region),
         "types": counts,
+        "keyframe_count": sum(1 for f in region if f.key_frame),
         "avg_pkt_size": sum(sizes) / len(sizes) if sizes else None,
-        "frames": [{"index": f.index, "pts": f.pts, "type": f.frame_type} for f in region[:200]],
+        "frames": [
+            {
+                "index": f.index,
+                "pts": f.pts,
+                "type": f.frame_type,
+                "key_frame": f.key_frame,
+            }
+            for f in region[:200]
+        ],
     }
 
 

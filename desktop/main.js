@@ -66,6 +66,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: 'Chakshu Forensics',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

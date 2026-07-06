@@ -245,6 +245,65 @@ class CaseStore:
         self._persist(case)
         return item
 
+    def register_evidence_reference(
+        self,
+        path: Path,
+        actor: str,
+        *,
+        case_id: str | None = None,
+        relative_path: str = "",
+        secure_root: str = "",
+    ) -> EvidenceItem:
+        """Register evidence by filesystem path (secure media — no byte copy)."""
+        case = self._cases.get(case_id) if case_id else self.active_case()
+        if case is None:
+            case = self.active_case()
+        path = path.expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError(path)
+
+        digest = sha256_file(path)
+        for ev in case.evidence:
+            if ev.sha256 == digest or ev.storage_path == str(path):
+                return ev
+
+        ext = path.suffix.lower()
+        if ext in {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".mxf", ".ts", ".m4v", ".mpg", ".mpeg"}:
+            media_type = "video"
+        elif ext in {".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef"}:
+            media_type = "raw"
+        else:
+            media_type = "image"
+
+        item = EvidenceItem(
+            evidence_id=self._next_evidence_id(case),
+            filename=path.name,
+            media_type=media_type,
+            sha256=digest,
+            size_bytes=path.stat().st_size,
+            ingested=datetime.utcnow().isoformat(),
+            source_path=str(path),
+            storage_path=str(path),
+            metadata={
+                "secure_media": True,
+                "secure_media_root": secure_root,
+                "relative_path": relative_path or path.name,
+            },
+        )
+        item.custody.append(
+            CustodyEntry(
+                timestamp=item.ingested,
+                action="SECURE_MEDIA_LOAD",
+                actor=actor,
+                notes=f"Referenced from secure media: {relative_path or path.name}",
+                hash_after=digest,
+            )
+        )
+        case.evidence.append(item)
+        case.updated = datetime.utcnow().isoformat()
+        self._persist(case)
+        return item
+
     def _persist(self, case: ForensicCase) -> None:
         path = self.base_dir / case.case_id / "case.json"
         path.parent.mkdir(parents=True, exist_ok=True)

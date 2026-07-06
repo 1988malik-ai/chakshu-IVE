@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from aive.imaging import HAS_CV2
+from aive.imaging import HAS_CV2, denoise_colored
 
 if HAS_CV2:
     import cv2
@@ -72,14 +72,9 @@ def interlace_fields(frame: np.ndarray, field: str = "top") -> np.ndarray:
 
 def homomorphic_filter(frame: np.ndarray, sigma: float = 30.0, order: float = 0.5) -> np.ndarray:
     """R-153 — illumination normalization in log-frequency domain."""
-    if not HAS_CV2:
-        return frame
-    img = frame.astype(np.float32) + 1.0
-    log_img = np.log(img)
-    blur = cv2.GaussianBlur(log_img, (0, 0), max(sigma, 1.0))
-    illum = log_img - order * blur
-    out = np.exp(illum) - 1.0
-    return _clip_u8(out)
+    from aive.filters.illumination import homomorphic_filter as _homomorphic
+
+    return _homomorphic(frame, sigma, order)
 
 
 def auto_contrast_halo_suppress(frame: np.ndarray, clip: float = 2.5) -> np.ndarray:
@@ -147,7 +142,7 @@ def jpeg_artifact_reduce(frame: np.ndarray, strength: float = 0.6) -> np.ndarray
     if not HAS_CV2:
         return frame
     h, w = frame.shape[:2]
-    denoised = cv2.fastNlMeansDenoisedColored(frame, None, 4, 4, 7, 21)
+    denoised = denoise_colored(frame, 4, 4, 7, 21)
     block = 8
     mask = np.zeros((h, w), np.float32)
     for y in range(0, h, block):
@@ -198,6 +193,46 @@ def lens_distortion_correct(frame: np.ndarray, k1: float = -0.0006, k2: float = 
     return cv2.undistort(frame, cam, dist)
 
 
+def _parse_corners(raw: Any, w: int, h: int) -> np.ndarray | None:
+    if not raw or not isinstance(raw, (list, tuple)) or len(raw) < 4:
+        return None
+    pts: list[list[float]] = []
+    for pt in raw[:4]:
+        if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+            pts.append([float(pt[0]), float(pt[1])])
+    if len(pts) < 4:
+        return None
+    return np.float32(pts)
+
+
+def correct_perspective_homography(
+    frame: np.ndarray,
+    src_corners: list[list[float]] | list[tuple[float, float]],
+    dst_corners: list[list[float]] | list[tuple[float, float]] | None = None,
+) -> np.ndarray:
+    """Map a source quadrilateral to a destination rectangle (keystone / perspective correction)."""
+    if not HAS_CV2:
+        return frame
+    h, w = frame.shape[:2]
+    src = _parse_corners(src_corners, w, h)
+    if src is None:
+        return frame
+    if dst_corners:
+        dst = _parse_corners(dst_corners, w, h)
+    else:
+        dst = np.float32([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]])
+    if dst is None:
+        dst = np.float32([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]])
+    m = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(
+        frame,
+        m,
+        (w, h),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+
+
 def perspective_stabilize_preview(frame: np.ndarray) -> np.ndarray:
     """R-158 — single-frame perspective straightening from dominant lines."""
     if not HAS_CV2:
@@ -234,23 +269,35 @@ def super_resolution(frame: np.ndarray, scale: float = 2.0) -> np.ndarray:
 
 def panoramic_cylindrical(frame: np.ndarray, fov_deg: float = 100.0) -> np.ndarray:
     """R-152 — cylindrical unwrap preview for wide / fisheye-like frames."""
+    from aive.panorama import cylindrical_from_wide
+
     if not HAS_CV2:
         return frame
-    h, w = frame.shape[:2]
-    fov = np.deg2rad(max(40.0, min(fov_deg, 170.0)))
-    f = w / fov
-    cx, cy = w / 2, h / 2
-    map_x = np.zeros((h, w), np.float32)
-    map_y = np.zeros((h, w), np.float32)
-    for y in range(h):
-        for x in range(w):
-            theta = (x - cx) / f
-            h_off = (y - cy) / max(np.cos(theta), 0.15)
-            src_x = cx + f * np.tan(theta)
-            src_y = cy + h_off
-            map_x[y, x] = np.clip(src_x, 0, w - 1)
-            map_y[y, x] = np.clip(src_y, 0, h - 1)
-    return cv2.remap(frame, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    return cylindrical_from_wide(frame, fov_deg)
+
+
+def omnidirectional_panorama(frame: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    """R-152 — omnidirectional / 360° → panoramic conversion."""
+    from aive.panorama import convert_omnidirectional
+
+    if not HAS_CV2:
+        return frame
+    p = params or {}
+    return convert_omnidirectional(
+        frame,
+        source_type=str(p.get("source_type", "fisheye")),
+        output_type=str(p.get("output_type", "equirectangular")),
+        fov_deg=float(p.get("fov_deg", p.get("fov", 180))),
+        fisheye_model=str(p.get("fisheye_model", "equidistant")),  # type: ignore[arg-type]
+        yaw_deg=float(p.get("yaw_deg", 0)),
+        pitch_deg=float(p.get("pitch_deg", 0)),
+        fov_h_deg=float(p.get("fov_h_deg", 90)),
+        fov_v_deg=float(p.get("fov_v_deg", 60)),
+        out_width=int(p["out_width"]) if p.get("out_width") else None,
+        out_height=int(p["out_height"]) if p.get("out_height") else None,
+        cx=float(p["cx"]) if p.get("cx") is not None else None,
+        cy=float(p["cy"]) if p.get("cy") is not None else None,
+    )
 
 
 def apply_advanced_filter(frame: np.ndarray, filter_id: str, params: dict[str, Any] | None = None) -> np.ndarray | None:
@@ -265,7 +312,9 @@ def apply_advanced_filter(frame: np.ndarray, filter_id: str, params: dict[str, A
     if fid == "adv_interlace":
         return interlace_fields(frame, str(p.get("field", "top")))
     if fid.startswith("adv_homomorph") or fid == "adv_homomorphic":
-        return homomorphic_filter(frame, float(p.get("sigma", 30)), float(p.get("order", 0.5)))
+        from aive.filters.illumination import homomorphic_filter as _homomorphic
+
+        return _homomorphic(frame, float(p.get("sigma", 30)), float(p.get("order", 0.5)))
     if fid.startswith("clr_dehaze") and float(p.get("strength", 0)) >= 0.8:
         return homomorphic_filter(frame, float(p.get("sigma", 25)))
     if fid.startswith("both_auto_contrast") or fid == "adv_auto_contrast":
@@ -288,12 +337,18 @@ def apply_advanced_filter(frame: np.ndarray, filter_id: str, params: dict[str, A
     if fid.startswith("geo_lens") or fid.startswith("geo_barrel") or fid.startswith("geo_pincushion") or fid.startswith("both_lens_correction"):
         k1 = float(p.get("k1", -0.0006 if "barrel" in fid else 0.0006))
         return lens_distortion_correct(frame, k1, float(p.get("k2", 0)))
+    if fid.startswith("geo_perspective") or fid.startswith("geo_keystone") or fid.startswith("both_perspective_match"):
+        if p.get("src_corners"):
+            return correct_perspective_homography(frame, p["src_corners"], p.get("dst_corners"))
+        return None
     if fid.startswith("both_perspective") or fid.startswith("adv_perspective") or fid.startswith("both_warp_stabilize"):
         return perspective_stabilize_preview(frame)
     if fid.startswith("rst_super_resolution") or fid.startswith("both_upscale_ai") or fid == "adv_super_resolution":
         return super_resolution(frame, float(p.get("scale", 2)))
     if fid.startswith("adv_panoramic") or fid == "adv_panorama":
         return panoramic_cylindrical(frame, float(p.get("fov", 100)))
+    if fid.startswith("adv_omni") or fid == "adv_omnidirectional":
+        return omnidirectional_panorama(frame, p)
     if fid.startswith("vid_stabilize") or fid.startswith("both_tracking_stabilize"):
         return perspective_stabilize_preview(_to_bgr(_gray(frame))) if frame.ndim == 2 else perspective_stabilize_preview(frame)
 

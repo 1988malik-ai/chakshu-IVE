@@ -38,27 +38,77 @@ def draw_timestamp(frame: np.ndarray, text: str, position: str = "bottom-right")
     return out
 
 
-def draw_grid(frame: np.ndarray, step: int = 50) -> np.ndarray:
+def draw_grid(
+    frame: np.ndarray,
+    step: int = 50,
+    *,
+    style: str = "uniform",
+    divisions: int | None = None,
+) -> np.ndarray:
+    """Draw measurement grid on frame (R-123). style: uniform | thirds | center."""
     if not HAS_CV2:
         return frame
     out = frame.copy()
     h, w = out.shape[:2]
-    for x in range(0, w, step):
-        cv2.line(out, (x, 0), (x, h), (80, 80, 80), 1)
-    for y in range(0, h, step):
-        cv2.line(out, (0, y), (w, y), (80, 80, 80), 1)
+    minor = (80, 80, 80)
+    major = (0, 200, 190)
+
+    if style == "thirds":
+        for x in (w // 3, (2 * w) // 3):
+            cv2.line(out, (x, 0), (x, h), major, 2)
+        for y in (h // 3, (2 * h) // 3):
+            cv2.line(out, (0, y), (w, y), major, 2)
+        return out
+
+    if style == "center":
+        cv2.line(out, (w // 2, 0), (w // 2, h), major, 2)
+        cv2.line(out, (0, h // 2), (w, h // 2), major, 2)
+        return out
+
+    if divisions and divisions > 1:
+        step_x = max(1, w // divisions)
+        step_y = max(1, h // divisions)
+        for i, x in enumerate(range(0, w, step_x)):
+            color = major if i > 0 and i % 4 == 0 else minor
+            thickness = 2 if color == major else 1
+            cv2.line(out, (x, 0), (x, h), color, thickness)
+        for i, y in enumerate(range(0, h, step_y)):
+            color = major if i > 0 and i % 4 == 0 else minor
+            thickness = 2 if color == major else 1
+            cv2.line(out, (0, y), (w, y), color, thickness)
+        return out
+
+    for x in range(0, w, max(1, step)):
+        cv2.line(out, (x, 0), (x, h), minor, 1)
+    for y in range(0, h, max(1, step)):
+        cv2.line(out, (0, y), (w, y), minor, 1)
     return out
 
 
-def draw_pip(background: np.ndarray, inset: np.ndarray, scale: float = 0.25) -> np.ndarray:
+def draw_pip(
+    background: np.ndarray,
+    inset: np.ndarray,
+    scale: float = 0.25,
+    position: str = "top-right",
+    margin: int = 10,
+) -> np.ndarray:
     if not HAS_CV2:
         return background
     out = background.copy()
     h, w = out.shape[:2]
     ih, iw = inset.shape[:2]
-    nw, nh = int(iw * scale), int(ih * scale)
+    nw, nh = max(32, int(iw * scale)), max(24, int(ih * scale))
     small = cv2.resize(inset, (nw, nh))
-    out[10 : 10 + nh, w - nw - 10 : w - 10] = small
+    positions = {
+        "top-left": (margin, margin),
+        "top-right": (w - nw - margin, margin),
+        "bottom-left": (margin, h - nh - margin),
+        "bottom-right": (w - nw - margin, h - nh - margin),
+    }
+    x0, y0 = positions.get(position, positions["top-right"])
+    x1, y1 = x0 + nw, y0 + nh
+    cv2.rectangle(out, (x0 - 2, y0 - 2), (x1 + 2, y1 + 2), (0, 0, 0), 2)
+    out[y0:y1, x0:x1] = small
     return out
 
 

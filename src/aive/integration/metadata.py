@@ -33,6 +33,9 @@ def ffprobe_full(path: Path) -> dict[str, Any]:
 
 def image_exif(path: Path) -> dict[str, Any]:
     try:
+        from aive.imaging import _register_heif_opener
+
+        _register_heif_opener()
         from PIL import Image
         from PIL.ExifTags import TAGS
 

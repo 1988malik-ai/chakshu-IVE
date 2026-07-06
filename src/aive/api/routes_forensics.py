@@ -6,12 +6,18 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from aive.analysis.stream import StreamAnalyzer
-from aive.api.examination_payload import examination_preview_fields
+from aive.api.examination_payload import examination_preview_fields, examination_preview_from_frame
+from aive.api.examination_schemas import (
+    ApplyFilterRequest,
+    ExaminationPreviewResponse,
+    RemoveFilterRequest,
+    ResetRequest,
+)
 from aive.api.session import sessions
-from aive.filters.engine import is_implemented
+from aive.filters.engine import build_filter_chain, is_implemented
 from aive.filters.forensic import FORENSIC_FILTER_IDS
 from aive.forensics.audit import audit_log
 from aive.forensics.case import case_store
@@ -46,13 +52,6 @@ class IngestRequest(BaseModel):
     session_id: str
     actor: str = "examiner"
     filename: str
-
-
-class ApplyFilterRequest(BaseModel):
-    session_id: str
-    filter_id: str
-    params: dict[str, Any] | None = None
-    actor: str = "examiner"
 
 
 class FrameAtTimeRequest(BaseModel):
@@ -141,10 +140,11 @@ def register_evidence(body: IngestRequest, data: bytes = None) -> dict[str, Any]
     raise HTTPException(400, "Use /evidence/ingest multipart endpoint")
 
 
-@router.post("/examination/apply-filter")
+@router.post("/examination/apply-filter", response_model=ExaminationPreviewResponse)
 def examination_apply_filter(body: ApplyFilterRequest) -> dict[str, Any]:
+    """Apply a filter to the session pipeline (non-destructive; renders from master)."""
     try:
-        session = sessions.apply_filter(body.session_id, body.filter_id, body.params)
+        session = sessions.apply_filter(body.session_id, body.filter_id, body.params, insert_at=body.insert_at)
     except KeyError:
         raise HTTPException(404, "Session not found") from None
     except Exception as e:
@@ -173,33 +173,52 @@ def examination_apply_filter(body: ApplyFilterRequest) -> dict[str, Any]:
     }
 
 
-class ResetRequest(BaseModel):
-    session_id: str
+@router.post("/examination/preview-filter", response_model=ExaminationPreviewResponse)
+def examination_preview_filter(body: ApplyFilterRequest) -> dict[str, Any]:
+    """Preview a filter on the master frame without committing to the pipeline."""
+    session = sessions.get(body.session_id)
+    if not session or session.master_frame is None:
+        raise HTTPException(400, "No frame loaded — upload an image or load a video frame first")
+    try:
+        sessions.ensure_filter_allowed(body.filter_id, session.media_type)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    try:
+        chain = [(body.filter_id, body.params)] + list(session.filter_chain)
+        preview_frame = build_filter_chain(chain).apply(session.master_frame.copy())
+    except Exception as e:
+        raise HTTPException(400, str(e)) from e
+    return {
+        **examination_preview_from_frame(session, preview_frame),
+        "implemented": is_implemented(body.filter_id),
+        "filter_id": body.filter_id,
+    }
 
 
-@router.post("/examination/reset")
+@router.post("/examination/reset", response_model=ExaminationPreviewResponse)
 def examination_reset(body: ResetRequest) -> dict[str, Any]:
-    session = sessions.reset_enhancement(body.session_id)
+    """Clear the filter pipeline and restore the master frame."""
+    try:
+        session = sessions.reset_enhancement(body.session_id)
+    except KeyError:
+        raise HTTPException(404, "Session not found") from None
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     return examination_preview_fields(session)
 
 
-@router.get("/examination/preview")
+@router.get("/examination/preview", response_model=ExaminationPreviewResponse)
 def examination_preview(session_id: str) -> dict[str, Any]:
     """Current session frame + pipeline — sync UI when returning to Examination Lab."""
     session = sessions.get(session_id)
     if not session or session.frame is None:
-        raise HTTPException(400, "No frame loaded in session")
+        raise HTTPException(400, "No frame loaded — upload an image or load a video frame first")
     return examination_preview_fields(session)
 
 
-class RemoveFilterRequest(BaseModel):
-    session_id: str
-    index: int
-    actor: str = "examiner"
-
-
-@router.post("/examination/remove-filter")
+@router.post("/examination/remove-filter", response_model=ExaminationPreviewResponse)
 def examination_remove_filter(body: RemoveFilterRequest) -> dict[str, Any]:
+    """Remove one filter from the pipeline and re-render from master."""
     pre = sessions.get(body.session_id)
     if pre is None:
         raise HTTPException(404, "Session not found")
@@ -260,3 +279,96 @@ def file_hash(path: str, algorithm: str = "all") -> dict[str, Any]:
     if algorithm == "all":
         return {"path": str(p), "hashes": hash_all_algorithms(p)}
     return {"path": str(p), "hash": hash_file(p, algorithm), "algorithm": algorithm}
+
+
+class SecureMediaScanBody(BaseModel):
+    root_path: str
+    verify_manifest: bool = True
+
+
+class SecureMediaLoadBody(BaseModel):
+    root_path: str
+    actor: str = "examiner"
+    case_id: str | None = None
+
+
+class SecureMediaBatchExportBody(BaseModel):
+    source_root: str
+    output_dir: str
+    mode: str = "copy"  # copy | stream_copy
+    report_dir: str | None = None
+    preserve_structure: bool = True
+    use_stream_copy: bool = True
+
+
+class BrowseFolderBody(BaseModel):
+    initial_dir: str | None = None
+    title: str = "Select folder"
+
+
+@router.post("/system/browse-folder")
+def browse_folder(body: BrowseFolderBody) -> dict[str, Any]:
+    """Open native folder picker on the local workstation (returns absolute path)."""
+    from aive.system.folder_picker import pick_folder
+
+    path = pick_folder(body.initial_dir)
+    if not path:
+        return {"success": False, "cancelled": True, "path": ""}
+    return {"success": True, "cancelled": False, "path": path}
+
+
+@router.post("/secure-media/scan")
+def secure_media_scan(body: SecureMediaScanBody) -> dict[str, Any]:
+    """R-145 — scan nested secure-media folder and hash all media files."""
+    from aive.forensics.secure_media_batch import scan_secure_media
+
+    root = Path(body.root_path).expanduser()
+    return scan_secure_media(root, verify_manifest=body.verify_manifest)
+
+
+@router.post("/secure-media/load")
+def secure_media_load(body: SecureMediaLoadBody) -> dict[str, Any]:
+    """R-145 — register secure-media files in the case (direct load, no copy)."""
+    from aive.forensics.secure_media_batch import register_secure_media
+
+    root = Path(body.root_path).expanduser()
+    result = register_secure_media(root, actor=body.actor, case_id=body.case_id)
+    if result.get("success"):
+        case = case_store.active_case()
+        audit_log.record(
+            case.case_id,
+            "SECURE_MEDIA_LOAD",
+            body.actor,
+            root=str(root),
+            registered=result.get("registered", 0),
+        )
+    return result
+
+
+@router.post("/secure-media/batch-export")
+def secure_media_batch_export(body: SecureMediaBatchExportBody) -> dict[str, Any]:
+    """R-145 — batch export from secure media with per-file hash reports."""
+    from aive.forensics.secure_media_batch import batch_secure_export
+
+    source = Path(body.source_root).expanduser()
+    output = Path(body.output_dir).expanduser()
+    report = Path(body.report_dir).expanduser() if body.report_dir else None
+    result = batch_secure_export(
+        source,
+        output,
+        mode=body.mode,
+        report_dir=report,
+        preserve_structure=body.preserve_structure,
+        use_stream_copy=body.use_stream_copy,
+    )
+    case = case_store.active_case()
+    audit_log.record(
+        case.case_id,
+        "SECURE_MEDIA_BATCH_EXPORT",
+        case.examiner or "examiner",
+        source=str(source),
+        output=str(output),
+        done=result.get("done", 0),
+        failed=result.get("failed", 0),
+    )
+    return result

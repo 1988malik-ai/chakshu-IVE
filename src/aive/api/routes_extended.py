@@ -43,14 +43,23 @@ class MediaBundleRequest(BaseModel):
     input_path: str
     processed_path: str | None = None
     output_dir: str
+    original_dir: str | None = None
+    processed_dir: str | None = None
+    session_id: str | None = None
     include_original: bool = True
     include_processed: bool = True
-    video_codec: str = "libx264"
+    use_session_enhancement: bool = True
+    video_codec: str = "auto_gpu"
     audio_codec: str = "aac"
     use_stream_copy: bool = False
     frame_rate_mode: str = "cfr"
     fps: float | None = 29.97
     prefer_h265: bool = False
+    prefer_gpu: bool = True
+    image_quality: int = 92
+    crf: int | None = 23
+    video_bitrate: str | None = None
+    encode_preset: str = "medium"
 
 
 class AudioExtractRequest(BaseModel):
@@ -90,12 +99,29 @@ class ProjectImportRequest(BaseModel):
 
 
 class ProjectExportSettingsRequest(BaseModel):
-    """Persist Legal Export paths on the active project."""
+    """Persist Legal Export paths and project folder structure on the active project."""
 
+    project_root: str | None = None
+    use_project_structure: bool | None = None
+    folder_evidence: str | None = None
+    folder_examination: str | None = None
+    folder_bundles: str | None = None
+    folder_pdf: str | None = None
+    folder_reports: str | None = None
+    folder_video_iframes: str | None = None
+    folder_video_trim: str | None = None
+    folder_audio: str | None = None
+    folder_metadata: str | None = None
+    folder_captures: str | None = None
+    folder_subtitles: str | None = None
     output_dir: str | None = None
+    evidence_dir: str | None = None
+    examination_dir: str | None = None
+    bundles_dir: str | None = None
     pdf_path: str | None = None
     i_frames_dir: str | None = None
     audio_out: str | None = None
+    metadata_path: str | None = None
     input_path: str | None = None
     use_custom_paths: bool | None = None
     pdf_page_size: str | None = None
@@ -104,6 +130,20 @@ class ProjectExportSettingsRequest(BaseModel):
     pdf_rows: int | None = None
     pdf_margin_mm: float | None = None
     pdf_title: str | None = None
+    include_original: bool | None = None
+    include_processed: bool | None = None
+    use_session_enhancement: bool | None = None
+    video_codec: str | None = None
+    audio_codec: str | None = None
+    use_stream_copy: bool | None = None
+    frame_rate_mode: str | None = None
+    fps: float | None = None
+    prefer_h265: bool | None = None
+    prefer_gpu: bool | None = None
+    image_quality: int | None = None
+    crf: int | None = None
+    video_bitrate: str | None = None
+    encode_preset: str | None = None
 
 
 @router.post("/export/pdf-frames")
@@ -140,22 +180,33 @@ def api_pdf_frames(body: PdfExportRequest) -> dict[str, Any]:
 
 @router.post("/export/media-bundle")
 def api_media_bundle(body: MediaBundleRequest) -> dict[str, Any]:
+    session = sessions.get(body.session_id) if body.session_id else None
     bundle = MediaExportBundle(
         input_path=expand_path(body.input_path),
         output_dir=expand_path(body.output_dir),
+        original_dir=expand_path(body.original_dir) if body.original_dir else None,
+        processed_dir=expand_path(body.processed_dir) if body.processed_dir else None,
         include_original=body.include_original,
         include_processed=body.include_processed,
+        use_session_enhancement=body.use_session_enhancement,
         video_codec=body.video_codec,
         audio_codec=body.audio_codec,
         use_stream_copy=body.use_stream_copy,
         frame_rate_mode=body.frame_rate_mode,
         fps=body.fps,
         prefer_h265=body.prefer_h265,
+        prefer_gpu=body.prefer_gpu,
+        image_quality=body.image_quality,
+        crf=body.crf,
+        video_bitrate=body.video_bitrate,
+        encode_preset=body.encode_preset,
     )
     proc = expand_path(body.processed_path) if body.processed_path else None
-    result = export_media_bundle(expand_path(body.input_path), proc, bundle)
+    result = export_media_bundle(expand_path(body.input_path), proc, bundle, session=session)
     project_store.current.add_step("export_media_bundle", settings=body.model_dump())
-    project_store.current.export_settings = body.model_dump()
+    es = project_store.current.export_settings or {}
+    es.update(body.model_dump())
+    project_store.current.export_settings = es
     return result
 
 

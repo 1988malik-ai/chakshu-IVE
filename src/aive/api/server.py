@@ -16,10 +16,12 @@ from aive.analysis.stream import StreamAnalyzer
 from aive.api.examination_payload import examination_preview_fields
 from aive.api.session import sessions
 from aive.bookmarks.store import Bookmark, BookmarkStore
-from aive.export.exporter import ExportOptions, FrameRateMode, VideoExporter
-from aive.filters.catalog import filter_count, list_filters
+from aive.export.exporter import VideoExporter
+from aive.export.media_bundle import MediaExportBundle, _export_options
+from aive.filters.catalog import list_filters, FilterDomain
 from aive.gpu.encode import detect_available_encoders, select_encoder
 from aive.license.protection import activate_license, check_license, machine_fingerprint
+from aive.api.examination_schemas import LicenseStatusResponse
 from aive.api.config import cors_origins, get_api_host, get_api_port
 from aive.subtitles.renderer import SubtitleParser
 from aive.api.routes_extended import router as extended_router
@@ -31,13 +33,18 @@ from aive.api.routes_capture import router as capture_router
 from aive.api.routes_i18n import router as i18n_router
 from aive.api.routes_ai import router as ai_router
 from aive.api.routes_project_notes import router as project_notes_router
+from aive.api.routes_diagnostics import router as diagnostics_router
+from aive.api.middleware_logging import RequestLogMiddleware
 from aive.brand import PRODUCT_NAME, API_TITLE
 from aive.filters.engine import is_implemented
+from aive.log_config import configure_logging, log_file_path
 from aive.project.workflow import project_store
 from aive.forensics.case import case_store
 from aive.forensics.audit import audit_log
 from aive.media.loader import MediaLibrary
 from aive.media.video_frame import is_video_filename
+
+configure_logging()
 
 app = FastAPI(title=API_TITLE, version="1.0.0")
 app.include_router(extended_router)
@@ -49,7 +56,18 @@ app.include_router(capture_router)
 app.include_router(i18n_router)
 app.include_router(ai_router)
 app.include_router(project_notes_router)
+app.include_router(diagnostics_router)
 
+try:
+    from aive.api.routes_tracking import router as tracking_router
+
+    app.include_router(tracking_router)
+except Exception as _tracking_err:
+    import logging
+
+    logging.getLogger("aive").warning("Tracking API disabled: %s", _tracking_err)
+
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins(),
@@ -57,6 +75,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+import logging as _logging
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    if isinstance(exc, RequestValidationError):
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        detail = exc.detail
+        return JSONResponse(status_code=exc.status_code, content={"detail": detail})
+    _logging.getLogger("aive.api").exception(
+        "Unhandled %s %s: %s", request.method, request.url.path, exc
+    )
+    return JSONResponse(status_code=500, content={"detail": f"Server error: {exc}"})
+
 
 _bookmarks = BookmarkStore()
 _analyzer = StreamAnalyzer()
@@ -101,6 +141,12 @@ class ExportRequest(BaseModel):
     frame_rate_mode: str = "cfr"
     fps: float | None = 29.97
     prefer_h265: bool = False
+    prefer_gpu: bool = True
+    video_codec: str = "auto_gpu"
+    audio_codec: str = "copy"
+    crf: int | None = 23
+    video_bitrate: str | None = None
+    encode_preset: str = "medium"
 
 
 class BookmarkCreateRequest(BaseModel):
@@ -133,11 +179,16 @@ def health() -> dict[str, Any]:
     from aive.imaging import HAS_CV2
 
     media = media_tools_status()
+    log_path = log_file_path()
     return {
         "status": "ok",
         "app": PRODUCT_NAME,
         "product": PRODUCT_NAME,
+        "log_file": str(log_path),
+        "log_exists": log_path.is_file(),
         "opencv": HAS_CV2,
+        "tracking": HAS_CV2,
+        "install_hint": None if HAS_CV2 else "./scripts/install.sh --opencv",
         "ffmpeg": media["ffmpeg"],
         "ffprobe": media["ffprobe"],
         "ffmpeg_path": media.get("ffmpeg_path"),
@@ -153,8 +204,25 @@ def create_session() -> SessionCreateResponse:
     return SessionCreateResponse(session_id=s.id)
 
 
+_VALID_FILTER_QUERY_DOMAINS = frozenset({"image", "video", "both"})
+
+
 @app.get("/api/filters")
-def get_filters() -> dict[str, Any]:
+def get_filters(
+    domain: str | None = Query(
+        default=None,
+        description="Scope catalog: image, video, or both (cross-domain filters only)",
+    ),
+) -> dict[str, Any]:
+    dom: FilterDomain | None = None
+    if domain is not None:
+        if domain not in _VALID_FILTER_QUERY_DOMAINS:
+            raise HTTPException(
+                400,
+                f"Invalid domain '{domain}'. Use image, video, or both.",
+            )
+        dom = FilterDomain(domain)
+    catalog = list_filters(domain=dom)
     items = [
         {
             "id": f.id,
@@ -163,11 +231,16 @@ def get_filters() -> dict[str, Any]:
             "domain": f.domain.value,
             "description": f.description,
         }
-        for f in list_filters()
+        for f in catalog
     ]
     for it in items:
         it["implemented"] = is_implemented(it["id"])
-    return {"count": filter_count(), "filters": items, "implemented_count": sum(1 for i in items if i["implemented"])}
+    return {
+        "count": len(items),
+        "filters": items,
+        "implemented_count": sum(1 for i in items if i["implemented"]),
+        "domain": domain,
+    }
 
 
 @app.post("/api/media/upload")
@@ -246,6 +319,52 @@ async def upload_media(
         "can_redo": session.undo.can_redo,
         "evidence_id": session.evidence_id,
         **examination_preview_fields(session),
+    }
+
+
+@app.post("/api/media/stage")
+async def stage_media(
+    file: UploadFile = File(...),
+    session_id: str = Query(default=""),
+) -> dict[str, Any]:
+    """Stage auxiliary media (compare, PiP) without replacing the examination session."""
+    import logging
+
+    log = logging.getLogger("aive.media")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Empty file")
+
+    filename = file.filename or "upload.bin"
+    library = MediaLibrary()
+    media_type = library.classify(Path(filename)).value
+    if media_type == "unknown":
+        media_type = "image" if not is_video_filename(filename) else "video"
+
+    storage_path: str | None = None
+    try:
+        case = case_store.active_case()
+        ev = case_store.add_evidence_from_bytes(
+            case.case_id, data, filename, media_type, "system"
+        )
+        storage_path = ev.storage_path
+        audit_log.record(case.case_id, "EVIDENCE_INGEST", "system", filename=filename, sha256=ev.sha256)
+    except Exception as e:
+        log.warning("stage_media case ingest failed for %s: %s", filename, e)
+
+    if not storage_path:
+        sid = session_id or "staged"
+        upload_dir = Path.home() / ".ai-ive" / "uploads" / sid
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        dest = upload_dir / Path(filename).name
+        dest.write_bytes(data)
+        storage_path = str(dest)
+
+    log.info("staged auxiliary media %s → %s (%s)", filename, storage_path, media_type)
+    return {
+        "storage_path": storage_path,
+        "filename": Path(filename).name,
+        "media_type": media_type,
     }
 
 
@@ -390,8 +509,9 @@ def redo(body: SessionRequest) -> dict[str, Any]:
     }
 
 
-@app.get("/api/license/status")
+@app.get("/api/license/status", response_model=LicenseStatusResponse)
 def license_status() -> dict[str, Any]:
+    """Read-only license/trial status for the current machine."""
     s = check_license()
     return {
         "valid": s.valid,
@@ -399,6 +519,7 @@ def license_status() -> dict[str, Any]:
         "licensed_to": s.licensed_to,
         "is_trial": s.is_trial,
         "days_remaining": s.days_remaining,
+        "expires": s.expires,
         "machine_id": machine_fingerprint(),
     }
 
@@ -507,16 +628,21 @@ def export_video(body: ExportRequest) -> dict[str, Any]:
     inp = Path(body.input_path)
     if not inp.exists():
         raise HTTPException(404, "Input not found")
-    codec, _ = select_encoder(prefer_h265=body.prefer_h265)
-    gpu = codec if any(x in codec for x in ("nvenc", "qsv", "amf")) else None
-    opts = ExportOptions(
-        output_path=Path(body.output_path),
-        video_codec=codec,
-        gpu_encoder=gpu,
+    bundle = MediaExportBundle(
+        input_path=inp,
+        output_dir=Path(body.output_path).parent,
+        video_codec=body.video_codec,
+        audio_codec=body.audio_codec,
         use_stream_copy=body.use_stream_copy,
-        frame_rate_mode=FrameRateMode(body.frame_rate_mode),
+        frame_rate_mode=body.frame_rate_mode,
         fps=body.fps,
+        prefer_h265=body.prefer_h265,
+        prefer_gpu=body.prefer_gpu,
+        crf=body.crf,
+        video_bitrate=body.video_bitrate,
+        encode_preset=body.encode_preset,
     )
+    opts = _export_options(bundle, Path(body.output_path))
     return _exporter.export(inp, opts)
 
 
@@ -589,7 +715,13 @@ def run(
     port: int | None = None,
     frontend_dist: str | None = None,
 ) -> None:
+    import logging
     import uvicorn
+
+    configure_logging()
+    log_path = log_file_path()
+    logging.getLogger("aive").info("Starting API on %s:%s", host or get_api_host(), port if port is not None else get_api_port())
+    logging.getLogger("aive").info("Log file: %s", log_path)
 
     host = host or get_api_host()
     port = port if port is not None else get_api_port()

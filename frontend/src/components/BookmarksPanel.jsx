@@ -51,12 +51,14 @@ export default function BookmarksPanel({
   selectedFilter = null,
   filterChain = [],
   filterLabel = (id) => id,
+  mediaType = 'image',
   onSeek,
   onApplyFilter,
   setStatus,
   setError,
   notify,
 }) {
+  const isVideo = mediaType === 'video';
   const [bookmarks, setBookmarks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -168,7 +170,7 @@ export default function BookmarksPanel({
     }
     setError?.('');
     try {
-      if (bm.time_sec != null && onSeek) {
+      if (isVideo && bm.time_sec != null && onSeek) {
         await onSeek(bm.time_sec, bm.frame_index);
       }
       if (bm.bookmark_type === 'filter' && bm.filter_id && onApplyFilter) {
@@ -221,7 +223,8 @@ export default function BookmarksPanel({
         <div className="fx-bookmark-pos">
           <span>{t('bookmark.position', 'Position')}</span>
           <code>
-            {formatTime(timeSec)} · {t('bookmark.frame', 'frame')} #{frameIndex}
+            {isVideo ? `${formatTime(timeSec)} · ` : ''}
+            {t('bookmark.frame', 'frame')} #{frameIndex}
             {activeFilterId ? ` · ${filterLabel(activeFilterId)}` : ''}
           </code>
         </div>
@@ -318,8 +321,8 @@ export default function BookmarksPanel({
                 <strong>{bm.label || bm.id.slice(0, 8)}</strong>
               </div>
               <div className="fx-bookmark-item-meta">
-                {formatTime(bm.time_sec)}
-                {bm.frame_index != null ? ` · #${bm.frame_index}` : ''}
+                {isVideo && bm.time_sec != null ? `${formatTime(bm.time_sec)} · ` : ''}
+                {bm.frame_index != null ? `#${bm.frame_index}` : ''}
                 {bm.filter_id ? ` · ${filterLabel(bm.filter_id)}` : ''}
               </div>
               {bm.metadata?.notes && (

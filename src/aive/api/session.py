@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from aive.filters.catalog import get_filter, FilterDomain
 from aive.filters.engine import build_filter_chain
 from aive.imaging import HAS_CV2, bgr_from_bytes, bgr_to_jpeg_base64
 from aive.media.loader import MediaLibrary, MediaType
@@ -150,13 +151,56 @@ class SessionManager:
             return base.copy()
         return build_filter_chain(session.filter_chain).apply(base.copy())
 
-    def apply_filter(self, session_id: str, filter_id: str, params: dict | None = None) -> MediaSession:
+    def _filter_allowed(self, filter_id: str, media_type: str) -> bool:
+        spec = get_filter(filter_id)
+        if spec is None:
+            return False
+        if spec.domain == FilterDomain.BOTH:
+            return True
+        if media_type == "video":
+            return spec.domain == FilterDomain.VIDEO
+        return spec.domain == FilterDomain.IMAGE
+
+    @staticmethod
+    def filter_domain_mismatch_message(filter_id: str, media_type: str) -> str:
+        spec = get_filter(filter_id)
+        if spec is None:
+            return f"Unknown filter '{filter_id}'"
+        return (
+            f"Filter '{filter_id}' is for {spec.domain.value} evidence; "
+            f"current session is {media_type}. Load matching evidence first."
+        )
+
+    def ensure_filter_allowed(self, filter_id: str, media_type: str) -> None:
+        if not self._filter_allowed(filter_id, media_type):
+            raise ValueError(self.filter_domain_mismatch_message(filter_id, media_type))
+
+    def apply_filter(
+        self,
+        session_id: str,
+        filter_id: str,
+        params: dict | None = None,
+        *,
+        insert_at: int | None = None,
+    ) -> MediaSession:
         session = self._require(session_id)
         if session.master_frame is None:
-            raise ValueError("No frame loaded")
+            raise ValueError("No frame loaded — upload an image or load a video frame first")
+        self.ensure_filter_allowed(filter_id, session.media_type)
         session.undo.push(session.frame, "before_filter")
-        session.filter_chain.append((filter_id, params))
-        session.frame = self._render_from_master(session)
+        entry = (filter_id, params)
+        if insert_at is not None and 0 <= insert_at <= len(session.filter_chain):
+            session.filter_chain.insert(insert_at, entry)
+            pop_index = insert_at
+        else:
+            session.filter_chain.append(entry)
+            pop_index = len(session.filter_chain) - 1
+        try:
+            session.frame = self._render_from_master(session)
+        except Exception:
+            session.filter_chain.pop(pop_index)
+            session.undo.undo()
+            raise
         return session
 
     def seek_video(self, session_id: str, time_sec: float) -> MediaSession:
@@ -199,6 +243,8 @@ class SessionManager:
 
     def set_filter_chain(self, session_id: str, chain: list[tuple[str, dict | None]]) -> MediaSession:
         session = self._require(session_id)
+        for filter_id, _ in chain:
+            self.ensure_filter_allowed(filter_id, session.media_type)
         session.filter_chain = list(chain)
         session.frame = self._render_from_master(session)
         return session
@@ -226,7 +272,7 @@ class SessionManager:
         return s
 
     @staticmethod
-    def frame_to_base64_jpeg(frame: np.ndarray, quality: int = 85) -> str:
+    def frame_to_base64_jpeg(frame: np.ndarray, quality: int = 92) -> str:
         return bgr_to_jpeg_base64(frame, quality)
 
 

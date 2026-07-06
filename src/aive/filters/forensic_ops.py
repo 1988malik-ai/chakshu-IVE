@@ -11,7 +11,8 @@ from typing import Any
 import numpy as np
 
 from aive.filters.advanced import apply_advanced_filter
-from aive.imaging import HAS_CV2, apply_basic_filter
+from aive.filters.illumination import apply_illumination_filter
+from aive.imaging import HAS_CV2, apply_basic_filter, denoise_colored
 
 if HAS_CV2:
     import cv2
@@ -76,7 +77,7 @@ def _ai_enhance(frame: np.ndarray, p: dict[str, Any] | None = None) -> np.ndarra
 
         return run_ai_tool(frame, p)
     except Exception:
-        out = cv2.fastNlMeansDenoisedColored(frame, None, 5, 5, 7, 21)
+        out = denoise_colored(frame, 5, 5, 7, 21)
         return _unsharp(_clahe_l(out, 2.5), 0.35)
 
 
@@ -225,7 +226,29 @@ def _apply_color(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray |
 
 
 def _apply_blur_sharpen(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | None:
-    if fid.startswith("blr_gaussian") or fid in ("both_blur", "both_background_blur", "both_depth_blur"):
+    if fid == "both_background_blur":
+        r = int(float(p.get("radius", 15))) | 1
+        h, w = frame.shape[:2]
+        blurred = cv2.GaussianBlur(frame, (r, r), 0)
+        mask = np.zeros((h, w), np.float32)
+        axes = (max(8, int(w * 0.32)), max(8, int(h * 0.38)))
+        cv2.ellipse(mask, (w // 2, h // 2), axes, 0, 0, 360, 1.0, -1)
+        mask = cv2.GaussianBlur(mask, (0, 0), max(w, h) / 12)
+        mask = np.clip(mask, 0, 1)[..., np.newaxis]
+        return _clip_u8(frame.astype(np.float32) * mask + blurred.astype(np.float32) * (1.0 - mask))
+    if fid in ("both_depth_blur",) or fid.startswith("blr_radial"):
+        rows, cols = frame.shape[:2]
+        cx, cy = cols / 2, rows / 2
+        y, x = np.indices((rows, cols))
+        r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+        r = (r / max(r.max(), 1) * 8).astype(np.int32) | 1
+        out = frame.copy()
+        for step in (1, 3, 5):
+            blurred = cv2.GaussianBlur(out, (step * 2 + 1, step * 2 + 1), 0)
+            mask = (r >= step) & (r < step + 2)
+            out[mask] = blurred[mask]
+        return out
+    if fid.startswith("blr_gaussian") or fid == "both_blur":
         r = int(float(p.get("radius", 3))) | 1
         return cv2.GaussianBlur(frame, (r, r), 0)
     if fid.startswith("blr_box"):
@@ -248,18 +271,6 @@ def _apply_blur_sharpen(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.nd
                 k[y, x] = 1
         k /= max(k.sum(), 1)
         return cv2.filter2D(frame, -1, k)
-    if fid.startswith("blr_radial"):
-        rows, cols = frame.shape[:2]
-        cx, cy = cols / 2, rows / 2
-        y, x = np.indices((rows, cols))
-        r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
-        r = (r / max(r.max(), 1) * 8).astype(np.int32) | 1
-        out = frame.copy()
-        for step in (1, 3, 5):
-            blurred = cv2.GaussianBlur(out, (step * 2 + 1, step * 2 + 1), 0)
-            mask = (r >= step) & (r < step + 2)
-            out[mask] = blurred[mask]
-        return out
     if fid.startswith("blr_zoom"):
         layers = [cv2.GaussianBlur(frame, (0, 0), s) for s in (2, 6, 12)]
         return cv2.addWeighted(layers[0], 0.5, layers[2], 0.5, 0)
@@ -282,9 +293,9 @@ def _apply_blur_sharpen(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.nd
 def _apply_noise(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | None:
     if fid.startswith("ns_denoise") or fid.startswith("both_denoise") or fid.startswith("frn_noise_profile"):
         h = int(3 + float(p.get("strength", 0.5)) * 7) | 1
-        return cv2.fastNlMeansDenoisedColored(frame, None, h, h, 7, 21)
+        return denoise_colored(frame, h=h, h_color=h, template_window=7, search_window=21)
     if fid.startswith("ns_nlmeans") or fid.startswith("both_denoise_ai") or fid.startswith("both_noise_reduction_broadcast"):
-        return cv2.fastNlMeansDenoisedColored(frame, None, 10, 10, 7, 21)
+        return denoise_colored(frame, 10, 10, 7, 21)
     if fid.startswith("ns_median_denoise"):
         return cv2.medianBlur(frame, 5)
     if fid.startswith("ns_gaussian_denoise"):
@@ -324,6 +335,10 @@ def _apply_geometry(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarra
         cropped = frame[margin : h - margin, margin : w - margin]
         return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
     if fid.startswith("geo_perspective") or fid.startswith("geo_keystone") or fid.startswith("both_perspective_match"):
+        if p.get("src_corners"):
+            from aive.filters.advanced import correct_perspective_homography
+
+            return correct_perspective_homography(frame, p["src_corners"], p.get("dst_corners"))
         adv = apply_advanced_filter(frame, fid, p)
         if adv is not None:
             return adv
@@ -426,6 +441,10 @@ def _apply_stylize(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray
         out[::2] = (out[::2].astype(np.float32) * 0.65).astype(np.uint8)
         return out
     return None
+
+
+def _apply_illumination(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | None:
+    return apply_illumination_filter(frame, fid, p)
 
 
 def _apply_utility(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | None:
@@ -556,7 +575,7 @@ def _apply_video_temporal(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.
         lab[:, :, 0] = cv2.GaussianBlur(lab[:, :, 0], (0, 0), 8)
         return cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
     if fid.startswith("vid_noise_temporal") or fid.startswith("both_frame_average") or fid.startswith("both_median_stack") or fid.startswith("both_ghost_remove"):
-        return cv2.fastNlMeansDenoisedColored(frame, None, 7, 7, 7, 21)
+        return denoise_colored(frame, 7, 7, 7, 21)
     if fid.startswith("vid_interpolate") or fid.startswith("vid_frame_blend") or fid.startswith("vid_slow_motion"):
         blur = cv2.GaussianBlur(frame, (5, 5), 0)
         return cv2.addWeighted(frame, 0.65, blur, 0.35, 0)
@@ -625,17 +644,33 @@ def _apply_both(frame: np.ndarray, fid: str, p: dict[str, Any]) -> np.ndarray | 
             return cv2.stylization(frame)
         return _ai_enhance(frame, p)
     if fid in ("both_normalize", "both_auto_contrast", "both_auto_levels", "both_color_correct"):
-        return _apply_color(frame, fid.replace("both_", "clr_"), p) or _ai_enhance(frame, p)
-    if fid in ("both_blur", "both_sharpen", "both_denoise", "both_vignette", "both_film_grain", "both_glow"):
-        mapped = fid.replace("both_", "clr_") if fid == "both_normalize" else fid.replace("both_", "blr_" if "blur" in fid else "shp_" if "sharp" in fid else "ns_" if "denoise" in fid else "sty_")
-        for handler in (_apply_blur_sharpen, _apply_noise, _apply_stylize, _apply_color):
-            result = handler(frame, fid, p) or handler(frame, mapped, p)
-            if result is not None:
-                return result
+        return _apply_color(frame, fid, p) or _ai_enhance(frame, p)
+
+    for handler in (
+        _apply_blur_sharpen,
+        _apply_noise,
+        _apply_stylize,
+        _apply_color,
+        _apply_geometry,
+        _apply_utility,
+        _apply_restore_key,
+        _apply_video_temporal,
+    ):
+        result = handler(frame, fid, p)
+        if result is not None:
+            return result
+
+    if fid.startswith(("both_enhance", "both_deblur", "both_hdr_merge", "both_upscale_ai")):
+        adv = apply_advanced_filter(frame, fid, p)
+        if adv is not None:
+            return adv
+        return _ai_enhance(frame, p)
+
     return None
 
 
 _PREFIX_CHAIN: list[tuple[str, Any]] = [
+    ("ill_", _apply_illumination),
     ("clr_", _apply_color),
     ("blr_", _apply_blur_sharpen),
     ("shp_", _apply_blur_sharpen),
@@ -662,6 +697,10 @@ def apply_catalog_filter(frame: np.ndarray, filter_id: str, params: dict[str, An
     if adv is not None:
         return adv
 
+    ill = apply_illumination_filter(frame, filter_id, p)
+    if ill is not None:
+        return ill
+
     if filter_id.startswith("frn_"):
         for handler in (_apply_color, _apply_noise):
             result = handler(frame, filter_id, p)
@@ -673,12 +712,19 @@ def apply_catalog_filter(frame: np.ndarray, filter_id: str, params: dict[str, An
             result = handler(frame, filter_id, p)
             if result is not None:
                 return result
+            if prefix != "both_":
+                raise ValueError(
+                    f"Filter '{filter_id}' could not be applied to this frame. "
+                    "It may require OpenCV, a video sequence, or different media."
+                )
             break
 
     if filter_id.startswith("both_"):
         aliases = {
             "both_sharpen": "shp_unsharp",
             "both_blur": "blr_gaussian",
+            "both_background_blur": "both_background_blur",
+            "both_depth_blur": "both_depth_blur",
             "both_denoise": "ns_denoise",
             "both_vignette": "sty_vignette",
             "both_film_grain": "ns_add_grain",
@@ -688,4 +734,10 @@ def apply_catalog_filter(frame: np.ndarray, filter_id: str, params: dict[str, An
         if alias:
             return apply_catalog_filter(frame, alias, p)
 
-    return _ai_enhance(frame, p)
+    if filter_id.startswith(("ai_", "frn_ai", "both_enhance", "both_deblur", "both_denoise_ai", "both_low_light")):
+        return _ai_enhance(frame, p)
+
+    raise ValueError(
+        f"Filter '{filter_id}' is not supported for this image. "
+        "Choose a filter marked FORENSIC or load a still frame from video."
+    )

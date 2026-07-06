@@ -11,8 +11,8 @@ LOCALE_NAMES: dict[str, str] = {
 
 # English — complete catalog
 EN: dict[str, str] = {
-    "app.title": "Chakshu — Digital Media Examination",
-    "app.tagline": "Forensic image & video examination",
+    "app.title": "Chakshu Forensics",
+    "app.tagline": "Forensic Image & Video Examination / Enhancement Software",
     "nav.command": "Command Center",
     "nav.examine": "Examination Lab",
     "nav.capture": "Live Capture",

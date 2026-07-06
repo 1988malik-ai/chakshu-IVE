@@ -16,42 +16,82 @@ export default function ForensicVideoTransport({
 }) {
   const playingFwd = direction === 'forward';
   const playingRev = direction === 'reverse';
+  const previousFrameLabel = t('playback.step_back', 'Previous frame');
+  const playForwardLabel = playingFwd
+    ? t('playback.pause_forward', 'Pause forward playback')
+    : t('playback.play_forward', 'Play forward');
+  const playReverseLabel = playingRev
+    ? t('playback.pause_reverse', 'Pause reverse playback')
+    : t('playback.play_reverse', 'Play reverse frame-by-frame');
+  const nextFrameLabel = t('playback.step_forward', 'Next frame');
+  const nextIframeLabel = t('playback.next_iframe', 'Next I-frame');
+  const stopLabel = t('playback.stop', 'Stop playback');
 
   return (
     <div className={`fx-playback-transport${compact ? ' fx-playback-compact' : ''}`}>
       <div className="fx-playback-buttons">
-        <button type="button" className="fx-btn" disabled={disabled} onClick={onStepBack} title={t('playback.step_back', 'Previous frame')}>
-          ◀
+        <button
+          type="button"
+          className="fx-btn fx-transport-btn fx-transport-step"
+          disabled={disabled}
+          onClick={onStepBack}
+          title={previousFrameLabel}
+          aria-label={previousFrameLabel}
+        >
+          <span aria-hidden="true">|◀</span>
         </button>
         <button
           type="button"
-          className={`fx-btn${playingFwd ? ' fx-btn-primary' : ''}`}
+          className={`fx-btn fx-transport-btn fx-transport-play${playingFwd ? ' fx-btn-primary' : ''}`}
           disabled={disabled}
           onClick={playingFwd ? onPause : onPlayForward}
-          title={t('playback.play_forward', 'Play forward')}
+          title={playForwardLabel}
+          aria-label={playForwardLabel}
         >
-          {playingFwd ? '⏸' : '▶'}
+          <span aria-hidden="true">{playingFwd ? '⏸' : '▶'}</span>
         </button>
         <button
           type="button"
-          className={`fx-btn${playingRev ? ' fx-btn-primary' : ''}`}
+          className={`fx-btn fx-transport-btn fx-transport-reverse${playingRev ? ' fx-btn-primary' : ''}`}
           disabled={disabled}
           onClick={playingRev ? onPause : onPlayReverse}
-          title={t('playback.play_reverse', 'Play reverse (frame-accurate)')}
+          title={playReverseLabel}
+          aria-label={playReverseLabel}
         >
-          {playingRev ? '⏸' : '◀◀'}
+          <span aria-hidden="true">{playingRev ? '⏸' : '◀◀'}</span>
         </button>
-        <button type="button" className="fx-btn" disabled={disabled} onClick={onStepForward} title={t('playback.step_forward', 'Next frame')}>
-          ▶
+        <button
+          type="button"
+          className="fx-btn fx-transport-btn fx-transport-step"
+          disabled={disabled}
+          onClick={onStepForward}
+          title={nextFrameLabel}
+          aria-label={nextFrameLabel}
+        >
+          <span aria-hidden="true">▶|</span>
         </button>
         {!compact && (
-          <button type="button" className="fx-btn" disabled={disabled} onClick={onStepIframe} title={t('playback.next_iframe', 'Next I-frame')}>
-            I▶
+          <button
+            type="button"
+            className="fx-btn fx-transport-btn fx-transport-iframe"
+            disabled={disabled}
+            onClick={onStepIframe}
+            title={nextIframeLabel}
+            aria-label={nextIframeLabel}
+          >
+            <span aria-hidden="true">I▶|</span>
           </button>
         )}
         {(playingFwd || playingRev) && (
-          <button type="button" className="fx-btn" disabled={disabled} onClick={onPause}>
-            {t('playback.stop', 'Stop')}
+          <button
+            type="button"
+            className="fx-btn fx-transport-btn fx-transport-stop"
+            disabled={disabled}
+            onClick={onPause}
+            title={stopLabel}
+            aria-label={stopLabel}
+          >
+            {t('playback.stop_short', 'Stop')}
           </button>
         )}
       </div>

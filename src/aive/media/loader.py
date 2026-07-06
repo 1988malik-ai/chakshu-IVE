@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-from aive.imaging import HAS_CV2, bgr_from_bytes
+from aive.imaging import HAS_CV2, HEIF_EXTENSIONS, bgr_from_bytes
 
 if HAS_CV2:
     import cv2
@@ -18,7 +18,7 @@ if HAS_CV2:
 from aive.codecs.decoders import get_decoder
 
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp", ".gif"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp", ".gif", ".heic", ".heif"}
 RAW_EXTENSIONS = {".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef"}
 VIDEO_EXTENSIONS = {
     ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".mxf", ".ts", ".m4v", ".mpg", ".mpeg"
@@ -97,7 +97,7 @@ class MediaLibrary:
             except ImportError:
                 return None
 
-        if HAS_CV2:
+        if HAS_CV2 and path.suffix.lower() not in HEIF_EXTENSIONS:
             img = cv2.imread(str(path))
             if img is not None:
                 return img

@@ -7,11 +7,33 @@ export function parseApiError(data, fallback = 'Request failed') {
   return data?.error || data?.message || fallback;
 }
 
+export const LOG_FILE_HINT = '~/.ai-ive/chakshu.log';
+
+function logClientError(context, err, detail = '') {
+  const message = String(err?.message || err || 'unknown error');
+  fetch(`${API_BASE}/api/diagnostics/log`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ context, message, detail }),
+  }).catch(() => {});
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseApiError(data, res.statusText));
-  return data;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(parseApiError(data, res.statusText));
+      logClientError(path, err, `HTTP ${res.status}`);
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    if (err?.name === 'TypeError' || /fetch|network/i.test(String(err?.message))) {
+      logClientError(path, err, 'network');
+    }
+    throw err;
+  }
 }
 
 export const api = {
@@ -44,6 +66,24 @@ export const api = {
     if (!res.ok) throw new Error(parseApiError(data, res.statusText));
     return data;
   },
+  stageMedia: async (file, sessionId = '') => {
+    const form = new FormData();
+    form.append('file', file);
+    const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+    const res = await fetch(`${API_BASE}/api/media/stage${q}`, {
+      method: 'POST',
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(parseApiError(data, res.statusText));
+      logClientError('/api/media/stage', err, `HTTP ${res.status}`);
+      throw err;
+    }
+    return data;
+  },
+  diagnosticsLogTail: (lines = 80) =>
+    request(`/api/diagnostics/log-tail?lines=${lines}`),
   loadMediaPath: (sessionId, path) =>
     request('/api/media/load-path', {
       method: 'POST',
@@ -130,6 +170,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
+  exportVideo: (body) =>
+    request('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   extractAudio: (body) =>
     request('/api/export/audio', {
       method: 'POST',
@@ -191,8 +237,19 @@ export const api = {
   forensicsCreateCase: (body) =>
     request('/api/forensics/cases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   forensicsCustody: (caseId) => request(`/api/forensics/cases/${caseId}/custody`),
-  forensicsApplyFilter: (sessionId, filterId, params) =>
+  forensicsApplyFilter: (sessionId, filterId, params, opts = {}) =>
     request('/api/forensics/examination/apply-filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        filter_id: filterId,
+        params,
+        insert_at: opts.insertAt,
+      }),
+    }),
+  forensicsPreviewFilter: (sessionId, filterId, params) =>
+    request('/api/forensics/examination/preview-filter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, filter_id: filterId, params }),
@@ -215,6 +272,34 @@ export const api = {
     request(`/api/forensics/examination/analyze-video?path=${encodeURIComponent(path)}`, { method: 'POST' }),
   forensicsHash: (path, algorithm = 'all') =>
     request(`/api/forensics/examination/hash?path=${encodeURIComponent(path)}&algorithm=${algorithm}`),
+
+  forensicsSecureMediaScan: (rootPath, verifyManifest = true) =>
+    request('/api/forensics/secure-media/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root_path: rootPath, verify_manifest: verifyManifest }),
+    }),
+  forensicsSecureMediaLoad: (rootPath, actor = 'examiner', caseId = null) =>
+    request('/api/forensics/secure-media/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root_path: rootPath, actor, case_id: caseId }),
+    }),
+  forensicsSecureMediaBatchExport: (body) =>
+    request('/api/forensics/secure-media/batch-export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  browseFolder: (initialDir = '') =>
+    request('/api/forensics/system/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initial_dir: initialDir || undefined,
+        title: 'Select secure media folder',
+      }),
+    }),
 
   capHashFile: (path) =>
     request('/api/capabilities/hash/file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) }),
@@ -253,6 +338,8 @@ export const api = {
     request('/api/capabilities/measure/distance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capCompareCreate: (left_path, right_path) =>
     request('/api/capabilities/compare/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ left_path, right_path }) }),
+  capCompareGet: (sessionId) =>
+    request(`/api/capabilities/compare/${encodeURIComponent(sessionId)}`),
   capCompareRender: (body) =>
     request('/api/capabilities/compare/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capMpegViz: (path, time_sec, mode = 'macroblock') =>
@@ -348,6 +435,19 @@ export const api = {
     request('/api/capabilities/advanced/reverse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capAdvancedStabilize: (body) =>
     request('/api/capabilities/advanced/stabilize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capAdvancedTrackingStabilize: (body) =>
+    request('/api/capabilities/advanced/tracking-stabilize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capPanoramaConvert: (body) =>
+    request('/api/capabilities/advanced/panorama-convert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capPanoramaSession: (body) =>
+    request('/api/capabilities/advanced/panorama-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+
+  trackingRun: (body) =>
+    request('/api/tracking/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  trackingStabilize: (body) =>
+    request('/api/tracking/stabilize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  trackingSession: (trackingSessionId) =>
+    request(`/api/tracking/session/${encodeURIComponent(trackingSessionId)}`),
 
   markupListAnnotations: (mediaId, frameIndex = null) => {
     let q = `?media_id=${encodeURIComponent(mediaId)}`;

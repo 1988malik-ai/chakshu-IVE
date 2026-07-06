@@ -99,4 +99,8 @@ Write-Host "  .\.venv\Scripts\Activate.ps1"
 Write-Host "  `$env:PYTHONPATH='src'"
 Write-Host "  python -m aive.api.server"
 Write-Host ""
-Write-Host "  Double-click Run-Chakshu.bat  ->  http://localhost:9451"
+if (Test-Path (Join-Path $Root "frontend\dist\index.html")) {
+    Write-Host "  Double-click Run-Chakshu.bat  ->  http://127.0.0.1:9450 (pre-built UI)"
+} else {
+    Write-Host "  Double-click Run-Chakshu.bat  ->  http://localhost:9451 (dev UI; API on 9450)"
+}

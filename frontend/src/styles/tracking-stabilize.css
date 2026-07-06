@@ -1,0 +1,397 @@
+.fx-track-panel {
+  border-top: 1px solid var(--fx-border);
+  background:
+    radial-gradient(ellipse at 24% 18%, rgba(52, 211, 153, 0.08), transparent 46%),
+    linear-gradient(180deg, var(--fx-panel-2) 0%, rgba(18, 22, 31, 0.95) 100%);
+}
+
+.fx-track-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fx-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fx-track-tutorial-toggle {
+  border: 1px solid var(--fx-border);
+  background: transparent;
+  color: var(--fx-accent-2);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: var(--fx-radius-sm, 6px);
+  cursor: pointer;
+}
+
+.fx-track-tutorial-toggle:hover {
+  border-color: var(--fx-accent-2);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.fx-track-tutorial {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.fx-track-tutorial-next {
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.14), rgba(52, 211, 153, 0.04));
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.fx-track-tutorial-next-label {
+  display: block;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fx-accent-2);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.fx-track-tutorial-next strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--fx-text);
+  margin-bottom: 4px;
+}
+
+.fx-track-tutorial-next p {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--fx-muted);
+}
+
+.fx-track-tutorial-steps {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-track-tutorial-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.68rem;
+  color: var(--fx-muted);
+}
+
+.fx-track-tutorial-step strong {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--fx-text-secondary);
+  margin-bottom: 2px;
+}
+
+.fx-track-tutorial-step p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.fx-track-tutorial-step-num {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border: 1px solid var(--fx-border);
+  color: var(--fx-muted);
+  background: var(--fx-panel);
+}
+
+.fx-track-tutorial-step--current .fx-track-tutorial-step-num {
+  border-color: var(--fx-accent-2);
+  color: #042f1a;
+  background: var(--fx-accent-2);
+}
+
+.fx-track-tutorial-step--current strong {
+  color: var(--fx-accent-2);
+}
+
+.fx-track-tutorial-step--done {
+  opacity: 0.72;
+}
+
+.fx-track-tutorial-step--done .fx-track-tutorial-step-num {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: var(--fx-accent-2);
+}
+
+.fx-track-output-hint {
+  margin: 0;
+  font-size: 0.66rem;
+  color: var(--fx-muted);
+  font-family: var(--fx-mono);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.fx-track-export-hint {
+  margin: 0;
+  font-size: 0.66rem;
+  color: var(--fx-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fx-track-export-name {
+  font-family: var(--fx-mono);
+  font-size: 0.62rem;
+  color: var(--fx-text-secondary);
+  word-break: break-all;
+}
+
+.fx-track-export-hint--ready {
+  color: var(--fx-accent-2);
+}
+
+.fx-track-log {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.fx-track-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--fx-border);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fx-muted);
+}
+
+.fx-track-log-clear {
+  border: none;
+  background: transparent;
+  color: var(--fx-accent-2);
+  font-size: 0.62rem;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.fx-track-log-error {
+  padding: 8px 10px;
+  background: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.fx-track-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.fx-track-log-item {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 4px 8px;
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.fx-track-log-item:last-child {
+  border-bottom: none;
+}
+
+.fx-track-log-time {
+  font-family: var(--fx-mono);
+  color: var(--fx-muted);
+  font-size: 0.6rem;
+}
+
+.fx-track-log-msg {
+  color: var(--fx-text-secondary);
+  grid-column: 2;
+}
+
+.fx-track-log-detail {
+  grid-column: 2;
+  display: block;
+  margin-top: 2px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fbbf24;
+  font-size: 0.6rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--fx-mono);
+}
+
+.fx-track-log-item--error .fx-track-log-msg {
+  color: #fca5a5;
+}
+
+.fx-track-log-item--success .fx-track-log-msg {
+  color: var(--fx-accent-2);
+}
+
+.fx-track-log-item--warn .fx-track-log-msg {
+  color: #fbbf24;
+}
+
+.fx-track-body {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(420px, 1.45fr) minmax(320px, 0.9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.fx-track-workspace-main,
+.fx-track-workspace-side,
+.fx-track-controls-card {
+  min-width: 0;
+}
+
+.fx-track-workspace-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-track-workspace-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fx-track-controls-card {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  background: rgba(6, 8, 12, 0.32);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fx-track-stage {
+  position: relative;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm, 6px);
+  overflow: hidden;
+  background: #000;
+  min-height: 420px;
+  max-height: min(680px, 64vh);
+  cursor: crosshair;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fx-track-stage img {
+  display: block;
+  width: 100%;
+  max-height: min(680px, 64vh);
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.fx-track-bbox {
+  position: absolute;
+  border: 2px solid var(--fx-accent-2);
+  background: rgba(52, 211, 153, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.fx-track-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fx-track-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.62rem;
+  color: var(--fx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fx-track-fields label span {
+  font-weight: 600;
+}
+
+.fx-track-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.68rem;
+  font-family: var(--fx-mono);
+  color: var(--fx-text-secondary);
+}
+
+.fx-track-panel-active .fx-track-stage {
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
+}
+
+.fx-track-panel-compact .fx-track-body {
+  grid-template-columns: minmax(360px, 1.35fr) minmax(280px, 0.85fr);
+}
+
+.fx-track-panel-compact .fx-track-stage {
+  min-height: 360px;
+  max-height: min(600px, 58vh);
+}
+
+.fx-track-panel-compact .fx-track-stage img {
+  max-height: min(600px, 58vh);
+}
+
+@media (max-width: 1100px) {
+  .fx-track-body,
+  .fx-track-panel-compact .fx-track-body {
+    grid-template-columns: 1fr;
+  }
+
+  .fx-track-workspace-side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 700px) {
+  .fx-track-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .fx-track-stage,
+  .fx-track-panel-compact .fx-track-stage {
+    min-height: 300px;
+    max-height: 58vh;
+  }
+}

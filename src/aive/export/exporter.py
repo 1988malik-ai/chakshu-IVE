@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
@@ -30,6 +31,9 @@ class ExportOptions:
     burn_subtitles: bool = False
     faststart: bool = True  # VMS-friendly moov atom
     pixel_format: str = "yuv420p"
+    crf: int | None = 23
+    video_bitrate: str | None = None  # e.g. "8M"
+    encode_preset: str = "medium"  # libx264 / libx265 CPU preset
 
 
 class VideoExporter:
@@ -61,6 +65,12 @@ class VideoExporter:
                     video_args.extend(["-preset", options.gpu_preset])
                 elif "qsv" in enc:
                     video_args.extend(["-preset", "medium"])
+            elif enc in ("libx264", "libx265") and options.encode_preset:
+                video_args.extend(["-preset", options.encode_preset])
+            if options.crf is not None and enc in ("libx264", "libx265", "libvpx-vp9"):
+                video_args.extend(["-crf", str(options.crf)])
+            elif options.video_bitrate:
+                video_args.extend(["-b:v", options.video_bitrate])
             video_args.extend(["-pix_fmt", options.pixel_format])
 
         cmd.extend(video_args)
