@@ -81,9 +81,9 @@ class VideoExporter:
             cmd.extend(["-c:a", options.audio_codec])
 
         if options.frame_rate_mode == FrameRateMode.CFR and options.fps:
-            cmd.extend(["-r", str(options.fps)])
+            cmd.extend(["-fps_mode", "cfr", "-r", str(options.fps)])
         elif options.frame_rate_mode == FrameRateMode.VFR:
-            cmd.extend(["-vsync", "vfr"])
+            cmd.extend(["-fps_mode", "vfr"])
 
         if options.faststart:
             cmd.extend(["-movflags", "+faststart"])
