@@ -54,8 +54,8 @@ Related references:
 | Audio redaction | Implemented | `src/aive/audio/redaction.py`, Audio Redaction panel | Add mute region and export redacted audio/video | Output has selected region muted |
 | Add/mux audio stream | Implemented | `src/aive/audio/mux.py` | Forensic Tools -> audio mux panel | Output video includes selected/new audio stream |
 | A/V sync adjustment | Implemented | Audio sync tools | Use A/V offset control on loaded media | Offset is applied/export command succeeds |
-| Video overlays and side-by-side comparison | Implemented | `VideoOverlayComparePanel.jsx`, compare library | Examination Lab -> Video Tools -> compare/overlay | Side-by-side/PiP overlay previews and exports |
-| PiP display | Implemented | Video overlay compare settings | Enable PiP mode and choose position | PiP appears in selected position |
+| Video overlays and side-by-side comparison | Implemented | `VideoOverlayComparePanel.jsx`, compare library, `/api/capabilities/compare/export-image` | Examination Lab -> Video Tools -> compare/overlay -> Preview compare -> Export compare JPEG | Side-by-side/PiP overlay previews and a JPEG export file is written |
+| PiP display | Implemented | Video overlay compare settings, `draw_pip` | Enable PiP mode, choose position, preview/export | PiP appears in selected position and exports as a composed frame |
 | Geometric distortion/perspective correction | Implemented | `PerspectiveCorrectionPanel.jsx`, `geo_keystone`, `both_perspective_match` | Geometry Correction -> Perspective correction -> drag corners -> Preview/Apply | Corrected preview appears; Apply updates frame; Revert correction restores |
 | Panoramic conversion | Implemented | `PanoramaConversionPanel.jsx`, `adv_omni_panorama` | Geometry Correction -> Omnidirectional -> Panorama | Preview/apply produces flattened panorama/perspective view |
 | Illumination correction algorithms | Implemented | `src/aive/filters/illumination.py`, filters `ill_homomorphic`, `ill_retinex`, `ill_adaptive_flatten` | Search illumination filters, apply each to image/video frame | Uneven lighting changes and pipeline records filter |
@@ -136,6 +136,12 @@ Focused tests, when `pytest` is installed:
 
 ```bash
 PYTHONPATH=src pytest tests/test_illumination_filters.py tests/test_measurement_tools.py tests/test_video_export_framerate.py tests/test_secure_media_batch.py -q
+```
+
+Video overlay / PiP composition:
+
+```bash
+PYTHONPATH=src pytest tests/test_compare_overlays.py -q
 ```
 
 Frontend build:

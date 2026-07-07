@@ -65,6 +65,7 @@ export default function VideoOverlayComparePanel({
   gridOverlay,
   timestampSettings,
   timestampContext,
+  outputDir = '',
   disabled = false,
   onPreviewUpdate,
   onApplied,
@@ -80,6 +81,7 @@ export default function VideoOverlayComparePanel({
   const [pip, setPip] = useState(DEFAULT_PIP);
   const [compareSessionId, setCompareSessionId] = useState(null);
   const [rendering, setRendering] = useState(false);
+  const [exportingCompare, setExportingCompare] = useState(false);
   const [applyingPip, setApplyingPip] = useState(false);
   const [lastPreview, setLastPreview] = useState(null);
   const [stagingRight, setStagingRight] = useState(false);
@@ -216,6 +218,29 @@ export default function VideoOverlayComparePanel({
     }
   }, [
     sessionId, ensureCompareSession, seekTime, compare, onApplied, reportSuccess, reportError, t,
+  ]);
+
+  const exportCompareImage = useCallback(async () => {
+    setExportingCompare(true);
+    try {
+      const sid = await ensureCompareSession();
+      const safeTime = String(Math.max(0, seekTime).toFixed(2)).replace('.', 'p');
+      const modeLabel = compare.mode === 'pip' ? 'pip' : 'side-by-side';
+      const baseDir = (outputDir || '~/Desktop/chakshu-export').replace(/\/$/, '');
+      const outputPath = `${baseDir}/compare-${modeLabel}-${safeTime}s.jpg`;
+      const r = await api.capCompareExportImage({
+        ...compareRenderBody(sid, seekTime, compare.rightTime, compare),
+        output_path: outputPath,
+      });
+      reportSuccess?.(t('voc.exported_compare', `Compare image exported: ${r.output_path}`));
+      setStatus?.(t('voc.exported_compare_status', `Compare export saved ${r.width}×${r.height}`));
+    } catch (e) {
+      reportError?.(e, 'Export compare');
+    } finally {
+      setExportingCompare(false);
+    }
+  }, [
+    ensureCompareSession, seekTime, compare, outputDir, reportSuccess, reportError, setStatus, t,
   ]);
 
   const applyPipOverlay = useCallback(async () => {
@@ -418,6 +443,9 @@ export default function VideoOverlayComparePanel({
               </button>
               <button type="button" className="fx-btn fx-btn-primary" disabled={disabled || rendering || !sessionId || !compare.rightPath} onClick={applyCompareToSession}>
                 {t('voc.apply_compare', 'Apply to examination frame')}
+              </button>
+              <button type="button" className="fx-btn" disabled={disabled || exportingCompare || rendering || !compare.rightPath} onClick={exportCompareImage}>
+                {exportingCompare ? t('voc.exporting', 'Exporting…') : t('voc.export_compare', 'Export compare JPEG')}
               </button>
             </div>
           </section>

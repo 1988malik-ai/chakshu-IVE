@@ -347,6 +347,8 @@ export const api = {
     request(`/api/capabilities/compare/${encodeURIComponent(sessionId)}`),
   capCompareRender: (body) =>
     request('/api/capabilities/compare/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capCompareExportImage: (body) =>
+    request('/api/capabilities/compare/export-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capMpegViz: (path, time_sec, mode = 'macroblock') =>
     request(`/api/capabilities/mpeg/visualize?mode=${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, time_sec }) }),
   capMetadataExport: (path, output_path) =>

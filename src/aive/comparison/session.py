@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from aive.imaging import HAS_CV2, bgr_from_bytes, bgr_to_jpeg_base64
+from aive.imaging import HAS_CV2, bgr_from_bytes, bgr_to_jpeg_base64, save_bgr_jpeg
 from aive.media.video_frame import extract_frame_bgr, is_video_filename
 from aive.overlays.compose import draw_pip, side_by_side
 from aive.video.seek import extract_frame_at_time
@@ -59,6 +59,29 @@ class CompareStore:
     def get(self, session_id: str) -> CompareSession | None:
         return self._sessions.get(session_id)
 
+    def compose_frame(
+        self,
+        session_id: str,
+        *,
+        mode: str = "side_by_side",
+        pip_scale: float = 0.28,
+        pip_position: str = "top-right",
+    ) -> tuple[np.ndarray | None, dict[str, Any]]:
+        s = self._sessions.get(session_id)
+        if not s:
+            return None, {"success": False, "error": "Session not found"}
+        left_path = Path(s.left_path)
+        right_path = Path(s.right_path)
+        lf = _frame_bgr(left_path, s.left_time)
+        rf = _frame_bgr(right_path, s.right_time)
+        if lf is None or rf is None:
+            return None, {"success": False, "error": "Could not load one or both sources"}
+        if mode == "pip":
+            combined = draw_pip(lf, rf, scale=pip_scale, position=pip_position)
+        else:
+            combined = side_by_side(lf, rf)
+        return combined, {"success": True}
+
     def render(
         self,
         session_id: str,
@@ -67,19 +90,15 @@ class CompareStore:
         pip_scale: float = 0.28,
         pip_position: str = "top-right",
     ) -> dict[str, Any]:
-        s = self._sessions.get(session_id)
-        if not s:
-            return {"success": False, "error": "Session not found"}
-        left_path = Path(s.left_path)
-        right_path = Path(s.right_path)
-        lf = _frame_bgr(left_path, s.left_time)
-        rf = _frame_bgr(right_path, s.right_time)
-        if lf is None or rf is None:
-            return {"success": False, "error": "Could not load one or both sources"}
-        if mode == "pip":
-            combined = draw_pip(lf, rf, scale=pip_scale, position=pip_position)
-        else:
-            combined = side_by_side(lf, rf)
+        combined, status = self.compose_frame(
+            session_id,
+            mode=mode,
+            pip_scale=pip_scale,
+            pip_position=pip_position,
+        )
+        if combined is None:
+            return status
+        s = self._sessions[session_id]
         return {
             "success": True,
             "preview": bgr_to_jpeg_base64(combined),
@@ -87,6 +106,32 @@ class CompareStore:
             "right_time": s.right_time,
             "left_path": s.left_path,
             "right_path": s.right_path,
+            "mode": mode,
+            "width": int(combined.shape[1]),
+            "height": int(combined.shape[0]),
+        }
+
+    def export_image(
+        self,
+        session_id: str,
+        output_path: Path,
+        *,
+        mode: str = "side_by_side",
+        pip_scale: float = 0.28,
+        pip_position: str = "top-right",
+    ) -> dict[str, Any]:
+        combined, status = self.compose_frame(
+            session_id,
+            mode=mode,
+            pip_scale=pip_scale,
+            pip_position=pip_position,
+        )
+        if combined is None:
+            return status
+        save_bgr_jpeg(output_path, combined, quality=92)
+        return {
+            "success": True,
+            "output_path": str(output_path),
             "mode": mode,
             "width": int(combined.shape[1]),
             "height": int(combined.shape[0]),

@@ -1346,6 +1346,7 @@ export default function ForensicApp() {
                 gridOverlay={gridOverlay}
                 timestampSettings={timestampSettings}
                 timestampContext={timestampContext}
+                outputDir={exportForm.output_dir}
                 disabled={!hasEvidence}
                 onPreviewUpdate={setPreview}
                 onApplied={(data) => applyToSession(data, 'Overlay / compare applied', { openLab: false })}

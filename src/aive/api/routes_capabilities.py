@@ -165,6 +165,10 @@ class CompareSeekBody(BaseModel):
     pip_position: str = "top-right"
 
 
+class CompareExportBody(CompareSeekBody):
+    output_path: str
+
+
 @router.get("/hash/algorithms")
 def hash_algorithms() -> dict[str, Any]:
     return {"algorithms": list(ALGORITHMS)}
@@ -548,6 +552,46 @@ def compare_render(body: CompareSeekBody) -> dict[str, Any]:
             s.right_path,
         )
         raise HTTPException(500, f"Compare render failed: {e}") from e
+
+
+@router.post("/compare/export-image")
+def compare_export_image(body: CompareExportBody) -> dict[str, Any]:
+    import logging
+
+    log = logging.getLogger("aive.compare")
+    s = compare_store.get(body.session_id)
+    if not s:
+        raise HTTPException(404, "Compare session not found")
+    try:
+        if body.left_time is not None:
+            s.left_time = body.left_time
+        if body.right_time is not None:
+            s.right_time = body.right_time
+        mode = body.mode if body.mode in ("side_by_side", "pip") else "side_by_side"
+        output_path = Path(body.output_path).expanduser()
+        if output_path.suffix.lower() not in {".jpg", ".jpeg"}:
+            output_path = output_path.with_suffix(".jpg")
+        result = compare_store.export_image(
+            body.session_id,
+            output_path,
+            mode=mode,
+            pip_scale=body.pip_scale,
+            pip_position=body.pip_position,
+        )
+        if not result.get("success"):
+            raise HTTPException(400, result.get("error", "Compare export failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(
+            "compare/export-image error session=%s left=%s right=%s output=%s",
+            body.session_id,
+            s.left_path,
+            s.right_path,
+            body.output_path,
+        )
+        raise HTTPException(500, f"Compare export failed: {e}") from e
 
 
 @router.post("/mpeg/visualize")

@@ -175,8 +175,8 @@
 | R-121 | Subtitle overlay customization | MUST | **IMPLEMENTED** | `/api/capabilities/subtitles/burn` + force_style |
 | R-122 | Timestamp overlay + formatting | MUST | **IMPLEMENTED** | `overlays/compose.py`, overlay API |
 | R-123 | Grid overlay | MUST | **IMPLEMENTED** | `overlays/compose.py` `draw_grid` |
-| R-124 | Video overlays / side-by-side | MUST | **PARTIAL** | `comparison/session.py`, compare API |
-| R-125 | Picture-in-Picture | MUST | **PARTIAL** | `overlays/compose.py` `draw_pip` |
+| R-124 | Video overlays / side-by-side | MUST | **IMPLEMENTED** | `comparison/session.py`, compare API, JPEG export, `tests/test_compare_overlays.py` |
+| R-125 | Picture-in-Picture | MUST | **IMPLEMENTED** | `overlays/compose.py` `draw_pip`, Examination Lab PiP workflow, `tests/test_compare_overlays.py` |
 
 ---
 
@@ -275,10 +275,10 @@
 | Metric | Count | Notes |
 |--------|-------|-------|
 | **Total requirements** | 104 | All tracked in this matrix |
-| **IMPLEMENTED** | 84 | 81% strict compliance |
-| **PARTIAL** | 18 | 17% |
+| **IMPLEMENTED** | 86 | 83% strict compliance |
+| **PARTIAL** | 17 | 16% |
 | **PLANNED** | 1 | 1% — multi-image align |
-| **Progress score** | ~89% | Partial items counted at 50% |
+| **Progress score** | ~91% | Partial items counted at 50% |
 
 | Status | MUST items (approx.) | Notes |
 |--------|----------------------|-------|
