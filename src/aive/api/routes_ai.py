@@ -145,7 +145,7 @@ def enhance_session(body: EnhanceSessionBody) -> dict[str, Any]:
     elif body.tool == "deblur_ai":
         filter_id = "both_deblur_ai"
     elif body.tool == "super_resolution":
-        filter_id = "rst_super_resolution"
+        filter_id = "both_upscale_ai" if session.media_type == "video" else "rst_super_resolution"
 
     if body.add_to_pipeline:
         sessions.apply_filter(body.session_id, filter_id, params)

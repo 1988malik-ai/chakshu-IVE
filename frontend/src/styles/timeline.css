@@ -277,6 +277,7 @@
 }
 
 .ftl-viewer {
+  position: relative;
   background: radial-gradient(ellipse at center, #111 0%, #000 70%);
   border-radius: 12px;
   overflow: hidden;
@@ -297,6 +298,18 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+.ftl-viewer video {
+  display: none;
+}
+
+.ftl-viewer video.is-active {
+  display: block;
+}
+
+.ftl-viewer img.is-hidden {
+  display: none;
 }
 
 .ftl-side-card {

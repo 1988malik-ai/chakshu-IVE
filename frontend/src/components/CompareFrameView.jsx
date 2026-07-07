@@ -33,6 +33,7 @@ export default function CompareFrameView({
 }) {
   const [mode, setMode] = useState('split');
   const [sliderPos, setSliderPos] = useState(50);
+  const [zoom, setZoom] = useState(1);
 
   const rootClass = `fx-compare fx-compare-${variant}${flash ? ' fx-compare-flash' : ''}`;
 
@@ -118,10 +119,25 @@ export default function CompareFrameView({
             {t('grid.show', 'Show grid overlay')}
           </label>
         )}
+        <label className="fx-compare-zoom" title={t('compare.zoom_hint', 'Zoom image preview')}>
+          <span>{t('compare.zoom', 'Zoom')}</span>
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.25"
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            aria-label={t('compare.zoom', 'Zoom')}
+          />
+          <button type="button" onClick={() => setZoom(1)} disabled={zoom === 1}>
+            {t('compare.zoom_reset', '1×')}
+          </button>
+        </label>
       </div>
 
       {canCompare && mode === 'slider' ? (
-        <div className="fx-compare-slider-wrap">
+        <div className="fx-compare-slider-wrap" style={{ '--compare-zoom': zoom }}>
           <FrameWithGrid
             src={original}
             alt="Original"
@@ -149,7 +165,7 @@ export default function CompareFrameView({
           </span>
         </div>
       ) : canCompare ? (
-        <div className="fx-compare-split">
+        <div className="fx-compare-split" style={{ '--compare-zoom': zoom }}>
           <div className="fx-compare-pane">
             <span className="fx-compare-pane-label">{t('compare.original', 'Original')}</span>
             <FrameWithGrid src={original} alt="Original evidence frame" gridOverlay={gridOverlay} />
@@ -168,7 +184,7 @@ export default function CompareFrameView({
           </div>
         </div>
       ) : (
-        <div className="fx-compare-single">
+        <div className="fx-compare-single" style={{ '--compare-zoom': zoom }}>
           <span className="fx-compare-pane-label fx-compare-pane-label-enh">
             {compareEnabled ? t('compare.enhanced', 'Enhanced') : t('compare.current_frame', 'Current frame')}
           </span>

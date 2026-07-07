@@ -248,11 +248,16 @@ export const api = {
         insert_at: opts.insertAt,
       }),
     }),
-  forensicsPreviewFilter: (sessionId, filterId, params) =>
+  forensicsPreviewFilter: (sessionId, filterId, params, opts = {}) =>
     request('/api/forensics/examination/preview-filter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, filter_id: filterId, params }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        filter_id: filterId,
+        params,
+        replace_filter_prefixes: opts.replaceFilterPrefixes,
+      }),
     }),
   forensicsReset: (sessionId) =>
     request('/api/forensics/examination/reset', {

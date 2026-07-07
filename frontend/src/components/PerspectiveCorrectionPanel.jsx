@@ -11,6 +11,16 @@ import {
 
 const FILTER_ID = 'geo_keystone';
 const AUTO_FILTER_ID = 'adv_perspective';
+const PERSPECTIVE_FILTER_PREFIXES = [
+  'geo_keystone',
+  'geo_perspective',
+  'both_perspective',
+  'adv_perspective',
+];
+
+function isPerspectiveFilter(filterId = '') {
+  return PERSPECTIVE_FILTER_PREFIXES.some((prefix) => filterId.startsWith(prefix));
+}
 
 function quadPath(corners, scale) {
   if (!corners?.length) return '';
@@ -23,8 +33,8 @@ export default function PerspectiveCorrectionPanel({
   sessionId,
   mediaType = 'image',
   mediaKey = '',
+  filterChain = [],
   disabled = false,
-  onPreviewUpdate,
   onApplied,
   setStatus,
   setError,
@@ -38,8 +48,11 @@ export default function PerspectiveCorrectionPanel({
   const [previewing, setPreviewing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [active, setActive] = useState(false);
+  const [correctedSrc, setCorrectedSrc] = useState('');
   const manualFilterId = mediaType === 'video' ? 'both_perspective_match' : FILTER_ID;
   const autoAvailable = mediaType !== 'video';
+  const perspectiveIndex = filterChain.findIndex(isPerspectiveFilter);
+  const hasAppliedPerspective = perspectiveIndex >= 0;
 
   const syncSize = useCallback(() => {
     const img = imgRef.current;
@@ -56,6 +69,7 @@ export default function PerspectiveCorrectionPanel({
   }, [mediaKey]);
 
   useEffect(() => {
+    setCorrectedSrc('');
     syncSize();
   }, [imageSrc, syncSize]);
 
@@ -117,30 +131,59 @@ export default function PerspectiveCorrectionPanel({
     setPreviewing(true);
     setError?.('');
     try {
-      const r = await api.forensicsPreviewFilter(sessionId, manualFilterId, cornersToParams(corners));
-      onPreviewUpdate?.(previewDataUrl(r.preview));
+      const r = await api.forensicsPreviewFilter(sessionId, manualFilterId, cornersToParams(corners), {
+        replaceFilterPrefixes: PERSPECTIVE_FILTER_PREFIXES,
+      });
+      const next = previewDataUrl(r.preview);
+      setCorrectedSrc(next);
       setStatus?.(t('perspective.previewed', 'Perspective correction preview'));
     } catch (e) {
       setError?.(e.message);
     } finally {
       setPreviewing(false);
     }
-  }, [sessionId, corners, manualFilterId, onPreviewUpdate, setStatus, setError, t]);
+  }, [sessionId, corners, manualFilterId, setStatus, setError, t]);
 
   const applyCorrection = useCallback(async () => {
     if (!sessionId || corners.length < 4) return;
     setApplying(true);
     setError?.('');
     try {
-      const r = await api.forensicsApplyFilter(sessionId, manualFilterId, cornersToParams(corners), { insertAt: 0 });
+      let insertAt = 0;
+      if (hasAppliedPerspective) {
+        await api.forensicsRemoveFilter(sessionId, perspectiveIndex);
+        insertAt = perspectiveIndex;
+      }
+      const r = await api.forensicsApplyFilter(sessionId, manualFilterId, cornersToParams(corners), { insertAt });
+      if (r.preview) setCorrectedSrc(previewDataUrl(r.preview));
       onApplied?.(r);
-      setStatus?.(t('perspective.applied', 'Perspective correction applied to examination frame'));
+      setStatus?.(
+        hasAppliedPerspective
+          ? t('perspective.updated', 'Perspective correction updated')
+          : t('perspective.applied', 'Perspective correction applied to examination frame'),
+      );
     } catch (e) {
       setError?.(e.message);
     } finally {
       setApplying(false);
     }
-  }, [sessionId, corners, manualFilterId, onApplied, setStatus, setError, t]);
+  }, [sessionId, corners, manualFilterId, hasAppliedPerspective, perspectiveIndex, onApplied, setStatus, setError, t]);
+
+  const revertCorrection = useCallback(async () => {
+    if (!sessionId || !hasAppliedPerspective) return;
+    setApplying(true);
+    setError?.('');
+    try {
+      const r = await api.forensicsRemoveFilter(sessionId, perspectiveIndex);
+      setCorrectedSrc('');
+      onApplied?.(r);
+      setStatus?.(t('perspective.reverted', 'Perspective correction reverted'));
+    } catch (e) {
+      setError?.(e.message);
+    } finally {
+      setApplying(false);
+    }
+  }, [sessionId, hasAppliedPerspective, perspectiveIndex, onApplied, setStatus, setError, t]);
 
   const autoStraighten = useCallback(async () => {
     if (!sessionId) return;
@@ -177,27 +220,36 @@ export default function PerspectiveCorrectionPanel({
           <p className="fx-grid-hint">
             {t('perspective.hint', 'Drag the four corners onto the skewed subject (document, plate, screen). Preview or apply to flatten to a rectangle.')}
           </p>
-          <div className="fx-perspective-stage" ref={rootRef}>
-            <img ref={imgRef} src={imageSrc} alt="" onLoad={syncSize} draggable={false} />
-            {corners.length === 4 && (
-              <svg className="fx-perspective-overlay" viewBox={`0 0 ${imgRef.current?.clientWidth || 1} ${imgRef.current?.clientHeight || 1}`}>
-                <path d={quadPath(corners, scale)} className="fx-perspective-quad" />
-                {corners.map(([x, y], i) => (
-                  <g key={CORNER_LABELS[i]}>
-                    <circle
-                      cx={x * scale.x}
-                      cy={y * scale.y}
-                      r={9}
-                      className="fx-perspective-handle"
-                      onPointerDown={(e) => onPointerDown(i, e)}
-                      onPointerMove={onPointerMove}
-                      onPointerUp={onPointerUp}
-                      onPointerCancel={onPointerUp}
-                    />
-                    <text x={x * scale.x + 12} y={y * scale.y + 4} className="fx-perspective-label">{CORNER_LABELS[i]}</text>
-                  </g>
-                ))}
-              </svg>
+          <div className={`fx-perspective-compare${correctedSrc ? ' has-result' : ''}`}>
+            <div className="fx-perspective-stage" ref={rootRef}>
+              <span className="fx-perspective-stage-label">Source corners</span>
+              <img ref={imgRef} src={imageSrc} alt="" onLoad={syncSize} draggable={false} />
+              {corners.length === 4 && (
+                <svg className="fx-perspective-overlay" viewBox={`0 0 ${imgRef.current?.clientWidth || 1} ${imgRef.current?.clientHeight || 1}`}>
+                  <path d={quadPath(corners, scale)} className="fx-perspective-quad" />
+                  {corners.map(([x, y], i) => (
+                    <g key={CORNER_LABELS[i]}>
+                      <circle
+                        cx={x * scale.x}
+                        cy={y * scale.y}
+                        r={9}
+                        className="fx-perspective-handle"
+                        onPointerDown={(e) => onPointerDown(i, e)}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={onPointerUp}
+                        onPointerCancel={onPointerUp}
+                      />
+                      <text x={x * scale.x + 12} y={y * scale.y + 4} className="fx-perspective-label">{CORNER_LABELS[i]}</text>
+                    </g>
+                  ))}
+                </svg>
+              )}
+            </div>
+            {correctedSrc && (
+              <div className="fx-perspective-result">
+                <span className="fx-perspective-stage-label">Corrected preview</span>
+                <img src={correctedSrc} alt="Perspective corrected preview" draggable={false} />
+              </div>
             )}
           </div>
           <div className="fx-perspective-presets">
@@ -224,6 +276,15 @@ export default function PerspectiveCorrectionPanel({
               onClick={applyCorrection}
             >
               {applying ? t('perspective.applying', 'Applying…') : t('perspective.apply', 'Apply correction')}
+            </button>
+            <button
+              type="button"
+              className="fx-btn fx-btn-danger"
+              disabled={disabled || !sessionId || applying || !hasAppliedPerspective}
+              onClick={revertCorrection}
+              title={t('perspective.revert_hint', 'Remove the applied perspective correction and return to the original frame geometry.')}
+            >
+              {t('perspective.revert', 'Revert correction')}
             </button>
             <button
               type="button"

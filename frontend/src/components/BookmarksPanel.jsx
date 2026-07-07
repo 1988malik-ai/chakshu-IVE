@@ -108,7 +108,7 @@ export default function BookmarksPanel({
 
   const saveFilter = async () => {
     if (!path) throw new Error(t('bookmark.no_media', 'Load evidence with a saved media path first'));
-    const filterId = selectedFilter?.id || filterChain[filterChain.length - 1];
+    const filterId = filterChain[filterChain.length - 1] || selectedFilter?.id;
     if (!filterId) {
       throw new Error(t('bookmark.no_filter', 'Select a filter or apply one to the pipeline first'));
     }
@@ -199,11 +199,13 @@ export default function BookmarksPanel({
     try {
       await fn();
     } catch (e) {
-      setError?.(e.message);
+      const message = e?.message || t('bookmark.failed', 'Bookmark action failed');
+      setError?.(message);
+      notify?.(message, 'error');
     }
   };
 
-  const activeFilterId = selectedFilter?.id || filterChain[filterChain.length - 1];
+  const activeFilterId = filterChain[filterChain.length - 1] || selectedFilter?.id;
 
   return (
     <div className="fx-panel fx-bookmarks-panel">

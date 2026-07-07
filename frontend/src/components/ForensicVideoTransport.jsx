@@ -4,6 +4,9 @@ export default function ForensicVideoTransport({
   t = (k, d) => d,
   direction,
   speed,
+  currentTime = 0,
+  duration = 0,
+  fps = 30,
   onSpeedChange,
   onPlayForward,
   onPlayReverse,
@@ -26,6 +29,16 @@ export default function ForensicVideoTransport({
   const nextFrameLabel = t('playback.step_forward', 'Next frame');
   const nextIframeLabel = t('playback.next_iframe', 'Next I-frame');
   const stopLabel = t('playback.stop', 'Stop playback');
+  const formatTimecode = (seconds) => {
+    const safe = Math.max(0, Number(seconds) || 0);
+    const totalFrames = Math.round(safe * Math.max(1, fps));
+    const frame = totalFrames % Math.max(1, Math.round(fps));
+    const totalSeconds = Math.floor(safe);
+    const s = totalSeconds % 60;
+    const m = Math.floor(totalSeconds / 60) % 60;
+    const h = Math.floor(totalSeconds / 3600);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}:${String(frame).padStart(2, '0')}`;
+  };
 
   return (
     <div className={`fx-playback-transport${compact ? ' fx-playback-compact' : ''}`}>
@@ -108,8 +121,13 @@ export default function ForensicVideoTransport({
           <option value={1}>1×</option>
           <option value={1.5}>1.5×</option>
           <option value={2}>2×</option>
+          <option value={4}>4×</option>
         </select>
       </label>
+      <span className="fx-playback-timestamp" title={t('playback.timestamp_speed', 'Timestamp-based playback speed')}>
+        {formatTimecode(currentTime)}
+        {duration ? ` / ${formatTimecode(duration)}` : ''}
+      </span>
       {playingRev && (
         <span className="fx-playback-badge">{t('playback.reverse_active', 'Reverse playback')}</span>
       )}

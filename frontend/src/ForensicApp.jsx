@@ -61,6 +61,15 @@ const NAV_KEYS = [
   { id: 'reports', key: 'nav.reports', icon: '≡' },
 ];
 
+const MEASUREMENT_UNITS = [
+  { value: 'px', label: 'Pixels (px)' },
+  { value: 'mm', label: 'Millimeters (mm)' },
+  { value: 'cm', label: 'Centimeters (cm)' },
+  { value: 'm', label: 'Meters (m)' },
+  { value: 'in', label: 'Inches (in)' },
+  { value: 'ft', label: 'Feet (ft)' },
+];
+
 export default function ForensicApp() {
   const { t, locale } = useLocale();
   const [page, setPage] = useState('examine');
@@ -117,7 +126,14 @@ export default function ForensicApp() {
   const [regionStart, setRegionStart] = useState(0);
   const [regionEnd, setRegionEnd] = useState(10);
   const [regionAnalysis, setRegionAnalysis] = useState(null);
-  const [calibration, setCalibration] = useState({ pixelsPerUnit: 1, unitName: 'px', deltaTime: null });
+  const [calibration, setCalibration] = useState({
+    pixelsPerUnit: 1,
+    unitName: 'px',
+    pointUncertaintyPx: 0.5,
+    calibrationUncertaintyPercent: 0,
+    perspectiveUncertaintyPercent: 0,
+    deltaTime: null,
+  });
   const [examples, setExamples] = useState([]);
   const [selectedExample, setSelectedExample] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
@@ -190,6 +206,7 @@ export default function ForensicApp() {
     setBlockingOverlay({
       message: opts.message || t('subtitle.burning', 'Processing…'),
       detail: opts.detail || '',
+      wait: opts.wait || t('subtitle.burning_wait', 'Please wait until the file is saved.'),
     });
   }, [t]);
 
@@ -456,12 +473,18 @@ export default function ForensicApp() {
     });
   }, [sessionId, storagePath, exportForm.input_path, autoOpenLab, applyToSession]);
 
-  const showWorkflowBar = !['command', 'examine', 'capture', 'markup', 'settings'].includes(page);
+  const showWorkflowBar = !['command', 'examine', 'capture', 'markup', 'timeline', 'tools', 'custody', 'settings'].includes(page);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
+    setPage('examine');
+    setBlocking(true, {
+      message: 'Ingesting evidence…',
+      detail: file.name,
+      wait: 'Creating preview, storing evidence, and linking it to the active case.',
+    });
     setPreviewOriginal(null);
     setPreview(URL.createObjectURL(file));
     try {
@@ -508,8 +531,11 @@ export default function ForensicApp() {
       }
       const kind = data.media_type === 'video' ? 'Video' : 'Image';
       reportSuccess(`${kind} ingested: ${file.name}`);
+      setPage('examine');
     } catch (err) {
       reportError(err, 'Upload failed');
+    } finally {
+      setBlocking(false);
     }
     e.target.value = '';
   };
@@ -1157,6 +1183,9 @@ export default function ForensicApp() {
                     t={t}
                     direction={playback.direction}
                     speed={playback.speed}
+                    currentTime={seekTime}
+                    duration={videoMeta?.duration || videoInfo?.duration || 0}
+                    fps={playbackFps}
                     onSpeedChange={playback.setSpeed}
                     onPlayForward={playback.playForward}
                     onPlayReverse={handlePlayReverse}
@@ -1276,6 +1305,7 @@ export default function ForensicApp() {
                 sessionId={sessionId}
                 mediaType={mediaType}
                 mediaKey={storagePath || mediaPath || sessionId}
+                filterChain={filterChain}
                 disabled={!hasEvidence}
                 onPreviewUpdate={setPreview}
                 onApplied={(data) => applyToSession(data, 'Perspective correction applied', { openLab: false })}
@@ -1480,40 +1510,82 @@ export default function ForensicApp() {
             <div className="fx-panel">
               <div className="fx-panel-head">Phase 3 — Annotations, Redaction &amp; Measurement</div>
               <div className="fx-panel-body">
-                <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                  <div>
-                    <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Calibration (px per unit)</label>
+                <div className="fx-measurement-settings">
+                  <div className="fx-measurement-field">
+                    <label>Calibration</label>
                     <input
                       type="number"
                       className="fx-input"
+                      min="0.001"
+                      step="0.001"
                       value={calibration.pixelsPerUnit}
                       onChange={(e) => setCalibration({ ...calibration, pixelsPerUnit: Number(e.target.value) || 1 })}
-                      style={{ width: 100 }}
+                      title="Pixels represented by one selected unit. Example: 10 means 10 px = 1 cm if unit is cm."
                     />
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Unit</label>
-                    <input
+                  <div className="fx-measurement-field">
+                    <label>Unit</label>
+                    <select
                       className="fx-input"
                       value={calibration.unitName}
                       onChange={(e) => setCalibration({ ...calibration, unitName: e.target.value })}
-                      style={{ width: 80 }}
+                      title="Measurement output unit"
+                    >
+                      {MEASUREMENT_UNITS.map((unit) => (
+                        <option key={unit.value} value={unit.value}>{unit.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="fx-measurement-field">
+                    <label>Point error</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="fx-input"
+                      value={calibration.pointUncertaintyPx}
+                      onChange={(e) => setCalibration({ ...calibration, pointUncertaintyPx: Number(e.target.value) || 0 })}
+                      title="Expected endpoint picking error in pixels"
+                    />
+                  </div>
+                  <div className="fx-measurement-field">
+                    <label>Cal error</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="fx-input"
+                      value={calibration.calibrationUncertaintyPercent}
+                      onChange={(e) => setCalibration({ ...calibration, calibrationUncertaintyPercent: Number(e.target.value) || 0 })}
+                      title="Calibration uncertainty percentage"
+                    />
+                  </div>
+                  <div className="fx-measurement-field">
+                    <label>Perspective</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="fx-input"
+                      value={calibration.perspectiveUncertaintyPercent}
+                      onChange={(e) => setCalibration({ ...calibration, perspectiveUncertaintyPercent: Number(e.target.value) || 0 })}
+                      title="Extra uncertainty if the measured plane is angled or perspective-corrected"
                     />
                   </div>
                   {isVideo && (
-                    <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--fx-muted)' }}>Δt for speed (sec)</label>
+                    <div className="fx-measurement-field">
+                      <label>Δt speed</label>
                       <input
                         type="number"
                         step="0.001"
                         className="fx-input"
                         value={calibration.deltaTime ?? ''}
                         onChange={(e) => setCalibration({ ...calibration, deltaTime: e.target.value ? Number(e.target.value) : null })}
-                        style={{ width: 100 }}
+                        title="Optional seconds between positions for speed estimation"
                       />
                     </div>
                   )}
-                  <span style={{ fontSize: '0.7rem', color: 'var(--fx-muted)' }}>
+                  <span className="fx-measurement-context">
                     Frame #{frameIndex} · {mediaIdLabel()}
                   </span>
                 </div>
@@ -1525,6 +1597,9 @@ export default function ForensicApp() {
                   timeSec={seekTime}
                   pixelsPerUnit={calibration.pixelsPerUnit}
                   unitName={calibration.unitName}
+                  pointUncertaintyPx={calibration.pointUncertaintyPx}
+                  calibrationUncertaintyPercent={calibration.calibrationUncertaintyPercent}
+                  perspectiveUncertaintyPercent={calibration.perspectiveUncertaintyPercent}
                   deltaTimeSec={calibration.deltaTime}
                   onPreviewUpdate={setPreview}
                   onStatus={setStatus}
@@ -2016,7 +2091,7 @@ export default function ForensicApp() {
           <div className="fx-blocking-card">
             <div className="fx-blocking-spinner" aria-hidden="true" />
             <p className="fx-blocking-title">{blockingOverlay.message}</p>
-            <p className="fx-blocking-detail">{t('subtitle.burning_wait', 'Please wait until the file is saved.')}</p>
+            <p className="fx-blocking-detail">{blockingOverlay.wait}</p>
             {blockingOverlay.detail ? (
               <code className="fx-blocking-path">{blockingOverlay.detail}</code>
             ) : null}

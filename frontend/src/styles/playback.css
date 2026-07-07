@@ -86,6 +86,22 @@
   font-size: 0.78rem;
 }
 
+.fx-playback-timestamp {
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(2, 8, 23, 0.42);
+  color: var(--fx-text-secondary);
+  font-family: var(--fx-mono);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.fx-playback-compact .fx-playback-timestamp {
+  margin-left: 0;
+}
+
 .fx-playback-badge {
   font-size: 0.68rem;
   font-weight: 600;

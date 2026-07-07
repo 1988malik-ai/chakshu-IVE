@@ -56,12 +56,13 @@ export default function TimelineProPage({
       <div className="ftl-studio">
         <div className="ftl-main">
           <div className="ftl-viewer">
-            {preview ? (
-              <img src={preview} alt="Frame" />
-            ) : storagePath ? (
+            {storagePath ? (
+              <>
               <video
                 ref={videoRef}
                 src={api.mediaServeUrl(storagePath)}
+                className={playback.direction === 'forward' ? 'is-active' : ''}
+                playsInline
                 onTimeUpdate={(e) => {
                   if (playback.direction !== 'reverse') onVideoTimeUpdate?.(e.target.currentTime);
                 }}
@@ -69,6 +70,14 @@ export default function TimelineProPage({
                   if (playback.direction === 'reverse') videoRef.current?.pause();
                 }}
               />
+                {preview && (
+                  <img
+                    src={preview}
+                    alt="Frame"
+                    className={playback.direction === 'forward' ? 'is-hidden' : ''}
+                  />
+                )}
+              </>
             ) : (
               <span className="ftl-viewer-empty">Load video evidence</span>
             )}
@@ -98,6 +107,9 @@ export default function TimelineProPage({
               t={t}
               direction={playback.direction}
               speed={playback.speed}
+              currentTime={seekTime}
+              duration={duration}
+              fps={fps}
               onSpeedChange={playback.setSpeed}
               onPlayForward={playback.playForward}
               onPlayReverse={onPlayReverse}

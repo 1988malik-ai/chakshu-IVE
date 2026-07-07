@@ -145,6 +145,9 @@ class MeasureBody(BaseModel):
     p2: list[float]
     pixels_per_unit: float = 1.0
     unit_name: str = "px"
+    point_uncertainty_px: float = 0.5
+    calibration_uncertainty_percent: float = 0.0
+    perspective_uncertainty_percent: float = 0.0
     delta_time_sec: float | None = None
 
 
@@ -446,7 +449,13 @@ def apply_overlay(body: OverlayBody) -> dict[str, Any]:
 
 @router.post("/measure/distance")
 def measure_dist(body: MeasureBody) -> dict[str, Any]:
-    cal = Calibration(body.pixels_per_unit, body.unit_name)
+    cal = Calibration(
+        body.pixels_per_unit,
+        body.unit_name,
+        body.point_uncertainty_px,
+        body.calibration_uncertainty_percent,
+        body.perspective_uncertainty_percent,
+    )
     return measure_distance((body.p1[0], body.p1[1]), (body.p2[0], body.p2[1]), cal)
 
 
@@ -454,7 +463,13 @@ def measure_dist(body: MeasureBody) -> dict[str, Any]:
 def measure_spd(body: MeasureBody) -> dict[str, Any]:
     if body.delta_time_sec is None:
         raise HTTPException(400, "delta_time_sec required")
-    cal = Calibration(body.pixels_per_unit, body.unit_name)
+    cal = Calibration(
+        body.pixels_per_unit,
+        body.unit_name,
+        body.point_uncertainty_px,
+        body.calibration_uncertainty_percent,
+        body.perspective_uncertainty_percent,
+    )
     return estimate_speed((body.p1[0], body.p1[1]), (body.p2[0], body.p2[1]), body.delta_time_sec, cal)
 
 
@@ -996,4 +1011,3 @@ def sync_similarity(body: StreamSyncBody) -> dict[str, Any]:
     if body.search_sec > 0 and body.time_a == body.time_b:
         return find_best_offset(pa, pb, body.time_a, body.search_sec)
     return compare_streams_at_time(pa, pb, body.time_a, body.time_b)
-

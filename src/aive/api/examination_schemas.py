@@ -15,6 +15,10 @@ class ApplyFilterRequest(BaseModel):
         default=None,
         description="Optional pipeline index; append when omitted",
     )
+    replace_filter_prefixes: list[str] | None = Field(
+        default=None,
+        description="Optional filter id prefixes to ignore during non-destructive preview",
+    )
     actor: str = Field(default="examiner", description="Audit trail actor name")
 
 

@@ -24,6 +24,31 @@
   max-height: 280px;
 }
 
+.fx-perspective-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.fx-perspective-compare.has-result {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.fx-perspective-stage-label {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: 8px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(2, 8, 23, 0.72);
+  color: var(--fx-text-secondary);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .fx-perspective-stage img {
   display: block;
   width: 100%;
@@ -31,6 +56,32 @@
   object-fit: contain;
   user-select: none;
   pointer-events: none;
+}
+
+.fx-perspective-result {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  max-height: 280px;
+  border: 1px solid rgba(134, 239, 172, 0.28);
+  border-radius: var(--fx-radius-sm, 6px);
+  background: #000;
+  overflow: hidden;
+}
+
+.fx-perspective-result img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+@media (max-width: 1000px) {
+  .fx-perspective-compare.has-result {
+    grid-template-columns: 1fr;
+  }
 }
 
 .fx-perspective-overlay {

@@ -164,6 +164,29 @@
   color: var(--fx-warn);
 }
 
+.fx-compare-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fx-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.fx-compare-zoom input {
+  width: 92px;
+  accent-color: var(--fx-accent);
+}
+
+.fx-compare-zoom button {
+  padding: 3px 7px;
+  border: 1px solid var(--fx-border-soft);
+  border-radius: var(--fx-radius-sm);
+  background: var(--fx-bg);
+  color: var(--fx-text-secondary);
+  cursor: pointer;
+}
+
 .fx-compare-modes {
   display: flex;
   gap: 4px;
@@ -200,6 +223,7 @@
   min-height: 360px;
   padding: 8px;
   background: var(--fx-canvas, #020304);
+  overflow: auto;
 }
 
 .fx-compare-lab .fx-compare-single {
@@ -219,6 +243,8 @@
   max-width: 100%;
   max-height: min(720px, 78vh);
   object-fit: contain;
+  transform: scale(var(--compare-zoom, 1));
+  transform-origin: center center;
 }
 
 /* Sharper forensic preview on high-DPI displays */
@@ -263,13 +289,15 @@
   min-height: 280px;
   min-width: 0;
   padding: 8px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .fx-compare-pane img {
   max-width: 100%;
   max-height: 62vh;
   object-fit: contain;
+  transform: scale(var(--compare-zoom, 1));
+  transform-origin: center center;
 }
 
 .fx-compare-pane-label {

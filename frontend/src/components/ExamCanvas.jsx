@@ -77,6 +77,9 @@ export default function ExamCanvas({
   onError,
   pixelsPerUnit = 1,
   unitName = 'px',
+  pointUncertaintyPx = 0.5,
+  calibrationUncertaintyPercent = 0,
+  perspectiveUncertaintyPercent = 0,
   deltaTimeSec = null,
 }) {
   const [tool, setTool] = useState('arrow');
@@ -200,6 +203,9 @@ export default function ExamCanvas({
           p2: points[1],
           pixels_per_unit: pixelsPerUnit,
           unit_name: unitName,
+          point_uncertainty_px: pointUncertaintyPx,
+          calibration_uncertainty_percent: calibrationUncertaintyPercent,
+          perspective_uncertainty_percent: perspectiveUncertaintyPercent,
           delta_time_sec: deltaTimeSec,
           group_id: groupId || null,
           snap_grid: snapGrid,
@@ -207,7 +213,7 @@ export default function ExamCanvas({
           image_height: h,
         });
         onPreviewUpdate?.(previewDataUrl(r.preview));
-        onStatus?.(`Measured: ${r.measurement?.distance?.toFixed(2)} ${r.measurement?.unit}`);
+        onStatus?.(`Measured: ${r.measurement?.distance?.toFixed(2)} ± ${r.measurement?.uncertainty?.toFixed(2)} ${r.measurement?.unit}`);
         await refreshList();
         return;
       }
@@ -342,9 +348,15 @@ export default function ExamCanvas({
           <>
             <div style={{ fontSize: '0.7rem', color: 'var(--fx-muted)', marginTop: 10 }}>Measurements</div>
             <ul className="fx-markup-list">
-              {measurements.filter((m) => m.frame_index === frameIndex).map((m) => (
-                <li key={m.id}>{m.label || `${m.result?.distance?.toFixed(2)} ${m.result?.unit}`}</li>
-              ))}
+              {measurements.filter((m) => m.frame_index === frameIndex).map((m) => {
+                const distance = m.result?.distance;
+                const uncertainty = m.result?.uncertainty;
+                const unit = m.result?.unit || '';
+                const label = Number.isFinite(distance)
+                  ? `${distance.toFixed(2)} ± ${(uncertainty || 0).toFixed(2)} ${unit}`
+                  : m.label;
+                return <li key={m.id}>{label}</li>;
+              })}
             </ul>
           </>
         )}

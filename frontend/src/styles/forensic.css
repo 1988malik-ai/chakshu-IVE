@@ -1621,6 +1621,42 @@ body {
 .fx-stat .lbl { font-size: 0.65rem; color: var(--fx-muted); text-transform: uppercase; margin-top: 6px; letter-spacing: 0.06em; }
 
 .fx-markup { display: grid; grid-template-columns: 1fr 200px; gap: 12px; }
+.fx-measurement-settings {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(112px, 150px)) minmax(180px, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+  align-items: end;
+}
+.fx-measurement-field label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--fx-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fx-measurement-field .fx-input {
+  width: 100%;
+  min-height: 38px;
+}
+.fx-measurement-context {
+  color: var(--fx-muted);
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-bottom: 10px;
+}
+@media (max-width: 1100px) {
+  .fx-measurement-settings {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+  .fx-measurement-context {
+    grid-column: 1 / -1;
+  }
+}
 .fx-markup-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--fx-border); }
 .fx-markup-stage { position: relative; background: var(--fx-canvas); border-radius: var(--fx-radius-sm); overflow: hidden; min-height: 280px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--fx-border); }
 .fx-markup-frame { position: relative; display: inline-block; line-height: 0; max-width: 100%; vertical-align: top; }

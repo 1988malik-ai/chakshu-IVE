@@ -184,7 +184,10 @@ def examination_preview_filter(body: ApplyFilterRequest) -> dict[str, Any]:
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     try:
-        chain = [(body.filter_id, body.params)] + list(session.filter_chain)
+        base_chain = list(session.filter_chain)
+        for prefix in body.replace_filter_prefixes or []:
+            base_chain = [(fid, params) for fid, params in base_chain if not fid.startswith(prefix)]
+        chain = [(body.filter_id, body.params)] + base_chain
         preview_frame = build_filter_chain(chain).apply(session.master_frame.copy())
     except Exception as e:
         raise HTTPException(400, str(e)) from e

@@ -57,6 +57,9 @@ class MeasureDrawBody(BaseModel):
     p2: list[float]
     pixels_per_unit: float = 1.0
     unit_name: str = "px"
+    point_uncertainty_px: float = 0.5
+    calibration_uncertainty_percent: float = 0.0
+    perspective_uncertainty_percent: float = 0.0
     delta_time_sec: float | None = None
     group_id: str | None = None
     snap_grid: int = 0
@@ -175,12 +178,18 @@ def measure_and_save(body: MeasureDrawBody) -> dict[str, Any]:
     if body.snap_grid and body.image_width and body.image_height:
         p1, p2 = snap_points([p1, p2], body.image_width, body.image_height, body.snap_grid)
 
-    cal = Calibration(body.pixels_per_unit, body.unit_name)
+    cal = Calibration(
+        body.pixels_per_unit,
+        body.unit_name,
+        body.point_uncertainty_px,
+        body.calibration_uncertainty_percent,
+        body.perspective_uncertainty_percent,
+    )
     result = measure_distance((p1[0], p1[1]), (p2[0], p2[1]), cal)
     if body.delta_time_sec:
         result["speed"] = estimate_speed((p1[0], p1[1]), (p2[0], p2[1]), body.delta_time_sec, cal)
 
-    label = f"{result['distance']:.2f} {result['unit']}"
+    label = f"{result['distance']:.2f} ± {result['uncertainty']:.2f} {result['unit']}"
     ann = Annotation(
         id=str(uuid.uuid4()),
         type="measure",
@@ -208,7 +217,8 @@ def measure_and_save(body: MeasureDrawBody) -> dict[str, Any]:
 
 @router.get("/measurements")
 def list_measurements(media_id: str = Query(..., description="Evidence key or storage path")) -> dict[str, Any]:
-    return {"measurements": [m.__dict__ for m in measurement_store.list(media_id)]}
+    media_key = canonical_media_id(media_id)
+    return {"measurements": [m.__dict__ for m in measurement_store.list(media_key)]}
 
 
 @router.get("/measurements/{media_id}")
