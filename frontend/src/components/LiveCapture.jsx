@@ -274,14 +274,14 @@ export default function LiveCapture({
             )}
           </div>
 
-          <div className="cap-section-label" style={{ marginTop: 16 }}>Screen capture (FFmpeg)</div>
+          <div className="cap-section-label cap-section-label-spaced">Screen capture (FFmpeg)</div>
           <input className="fx-input" value={screenPath} onChange={(e) => setScreenPath(e.target.value)} />
-          <button type="button" className="fx-btn" style={{ marginTop: 6, width: '100%' }} onClick={screenCapture}>Record 5s Screen</button>
+          <button type="button" className="fx-btn cap-full-action" onClick={screenCapture}>Record 5s Screen</button>
 
-          <div className="cap-section-label" style={{ marginTop: 16 }}>Image sequence → video</div>
+          <div className="cap-section-label cap-section-label-spaced">Image sequence → video</div>
           <input className="fx-input" placeholder="Frames folder" value={seqDir} onChange={(e) => setSeqDir(e.target.value)} />
-          <input className="fx-input" placeholder="Output MP4" value={seqOut} onChange={(e) => setSeqOut(e.target.value)} style={{ marginTop: 6 }} />
-          <button type="button" className="fx-btn" style={{ marginTop: 6, width: '100%' }} onClick={buildSequenceVideo}>Build Video</button>
+          <input className="fx-input cap-stacked-input" placeholder="Output MP4" value={seqOut} onChange={(e) => setSeqOut(e.target.value)} />
+          <button type="button" className="fx-btn cap-full-action" onClick={buildSequenceVideo}>Build Video</button>
         </div>
       </div>
     </div>

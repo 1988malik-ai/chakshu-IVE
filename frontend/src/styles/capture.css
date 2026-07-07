@@ -2,8 +2,9 @@
 
 .cap-root {
   width: 100%;
-  max-width: 100%;
+  max-width: 1480px;
   min-width: 0;
+  margin: 0 auto;
 }
 
 .cap-header h2 {
@@ -26,8 +27,8 @@
 
 .cap-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 16px;
+  grid-template-columns: minmax(520px, 1fr) minmax(280px, 360px);
+  gap: 18px;
   align-items: start;
 }
 
@@ -38,11 +39,13 @@
 .cap-viewer {
   position: relative;
   background: var(--fx-canvas, #020304);
-  border-radius: 12px;
+  border-radius: var(--fx-radius-lg);
   overflow: hidden;
   border: 1px solid var(--fx-border);
-  aspect-ratio: 16/10;
-  max-height: 420px;
+  aspect-ratio: 16 / 9;
+  min-height: clamp(360px, 42vh, 520px);
+  max-height: 620px;
+  box-shadow: var(--fx-shadow-md);
 }
 
 .cap-video {
@@ -68,10 +71,12 @@
 }
 
 .cap-side {
-  background: var(--fx-panel);
-  border: 1px solid var(--fx-border);
-  border-radius: 10px;
-  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(24, 30, 42, 0.92), rgba(12, 16, 24, 0.92));
+  border: 1px solid var(--fx-border-soft);
+  border-radius: var(--fx-radius-lg);
+  padding: 16px;
+  box-shadow: var(--fx-shadow-md);
 }
 
 .cap-section-label {
@@ -90,6 +95,19 @@
 }
 
 .cap-actions .fx-btn-primary { flex: 1; }
+
+.cap-section-label-spaced {
+  margin-top: 16px;
+}
+
+.cap-full-action {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.cap-stacked-input {
+  margin-top: 7px;
+}
 
 .cap-examples {
   margin-top: 16px;

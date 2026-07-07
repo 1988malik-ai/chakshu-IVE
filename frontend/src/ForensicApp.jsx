@@ -456,7 +456,7 @@ export default function ForensicApp() {
     });
   }, [sessionId, storagePath, exportForm.input_path, autoOpenLab, applyToSession]);
 
-  const showWorkflowBar = !['command', 'examine', 'capture', 'settings'].includes(page);
+  const showWorkflowBar = !['command', 'examine', 'capture', 'markup', 'settings'].includes(page);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -608,6 +608,21 @@ export default function ForensicApp() {
     }
     playback.playReverse();
   }, [playback, t]);
+
+  const handlePlaybackPause = useCallback(async () => {
+    const wasForward = playback.direction === 'forward';
+    const currentTime = videoRef.current?.currentTime;
+    playback.pause();
+    if (!wasForward || !sessionId || !Number.isFinite(currentTime)) return;
+    try {
+      const r = await api.seekVideo(sessionId, currentTime);
+      handlePreview(r);
+      setSeekTime(currentTime);
+      setStatus(`Paused at ${currentTime.toFixed(2)}s`);
+    } catch (e) {
+      reportError(e, 'Pause frame sync failed');
+    }
+  }, [playback, sessionId, reportError]);
 
   const buildTimeline = async (forceRefresh = false) => {
     if (!storagePath) return reportError('Load video evidence first.', 'Timeline');
@@ -1099,6 +1114,26 @@ export default function ForensicApp() {
                 </div>
               )}
               <div className="fx-examine-viewport">
+              {isVideo && storagePath && (
+                <div className={`fx-examine-live-video-frame${playback.direction === 'forward' ? ' is-active' : ''}`}>
+                  <span className="fx-compare-pane-label fx-compare-pane-label-enh">
+                    {t('playback.live_video', 'Live playback')}
+                  </span>
+                  <video
+                    ref={videoRef}
+                    src={api.mediaServeUrl(storagePath)}
+                    className="fx-examine-live-video"
+                    playsInline
+                    onTimeUpdate={(e) => {
+                      if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
+                    }}
+                    onPlay={() => {
+                      if (playback.direction === 'reverse') videoRef.current?.pause();
+                    }}
+                  />
+                </div>
+              )}
+              <div className={playback.direction === 'forward' ? 'fx-static-frame-hidden' : ''}>
               <CompareFrameView
                 originalSrc={previewOriginal}
                 enhancedSrc={preview}
@@ -1115,19 +1150,9 @@ export default function ForensicApp() {
                 onGridOverlayToggle={hasEvidence ? (v) => updateGridOverlay({ enabled: v }) : undefined}
                 t={t}
               />
+              </div>
               {isVideo && storagePath && (
                 <div className="fx-examine-playback fx-examine-playback--bar">
-                  <video
-                    ref={videoRef}
-                    src={api.mediaServeUrl(storagePath)}
-                    className="fx-examine-playback-source"
-                    onTimeUpdate={(e) => {
-                      if (playback.direction !== 'reverse') setSeekTime(e.target.currentTime);
-                    }}
-                    onPlay={() => {
-                      if (playback.direction === 'reverse') videoRef.current?.pause();
-                    }}
-                  />
                   <ForensicVideoTransport
                     t={t}
                     direction={playback.direction}
@@ -1135,7 +1160,7 @@ export default function ForensicApp() {
                     onSpeedChange={playback.setSpeed}
                     onPlayForward={playback.playForward}
                     onPlayReverse={handlePlayReverse}
-                    onPause={playback.pause}
+                    onPause={handlePlaybackPause}
                     onStepBack={() => { playback.pause(); stepFrame(-1); }}
                     onStepForward={() => { playback.pause(); stepFrame(1); }}
                     onStepIframe={() => { playback.pause(); stepFrame(1, true); }}
@@ -1249,6 +1274,7 @@ export default function ForensicApp() {
               <PerspectiveCorrectionPanel
                 imageSrc={previewOriginal || preview}
                 sessionId={sessionId}
+                mediaType={mediaType}
                 mediaKey={storagePath || mediaPath || sessionId}
                 disabled={!hasEvidence}
                 onPreviewUpdate={setPreview}

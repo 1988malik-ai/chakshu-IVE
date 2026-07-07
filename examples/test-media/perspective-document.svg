@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17202d"/>
+      <stop offset="1" stop-color="#0b1018"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="12" dy="18" stdDeviation="16" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <g opacity="0.22" stroke="#14f0c8" stroke-width="1">
+    <path d="M0 120 H1200 M0 240 H1200 M0 360 H1200 M0 480 H1200 M0 600 H1200 M0 720 H1200"/>
+    <path d="M120 0 V800 M240 0 V800 M360 0 V800 M480 0 V800 M600 0 V800 M720 0 V800 M840 0 V800 M960 0 V800 M1080 0 V800"/>
+  </g>
+  <polygon points="255,140 935,245 810,690 175,560" fill="#f8fafc" filter="url(#shadow)"/>
+  <polygon points="255,140 935,245 810,690 175,560" fill="none" stroke="#94a3b8" stroke-width="8"/>
+  <text x="332" y="235" fill="#0f172a" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" transform="rotate(8 332 235)">PERSPECTIVE TEST DOCUMENT</text>
+  <text x="315" y="292" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="28" transform="rotate(8 315 292)">Place handles on the four outer page corners</text>
+  <line x1="305" y1="338" x2="835" y2="420" stroke="#64748b" stroke-width="7"/>
+  <line x1="290" y1="390" x2="800" y2="468" stroke="#64748b" stroke-width="7"/>
+  <line x1="275" y1="442" x2="760" y2="516" stroke="#64748b" stroke-width="7"/>
+  <rect x="570" y="510" width="190" height="95" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="5" transform="rotate(8 570 510)"/>
+  <text x="603" y="565" fill="#1e3a8a" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" transform="rotate(8 603 565)">ID-0427</text>
+  <circle cx="255" cy="140" r="13" fill="#22c55e"/>
+  <circle cx="935" cy="245" r="13" fill="#22c55e"/>
+  <circle cx="810" cy="690" r="13" fill="#22c55e"/>
+  <circle cx="175" cy="560" r="13" fill="#22c55e"/>
+  <text x="54" y="742" fill="#94a3b8" font-family="Arial, Helvetica, sans-serif" font-size="24">Expected correction: flatten the skewed document into a rectangle.</text>
+</svg>

@@ -21,6 +21,7 @@ function quadPath(corners, scale) {
 export default function PerspectiveCorrectionPanel({
   imageSrc,
   sessionId,
+  mediaType = 'image',
   mediaKey = '',
   disabled = false,
   onPreviewUpdate,
@@ -37,6 +38,8 @@ export default function PerspectiveCorrectionPanel({
   const [previewing, setPreviewing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [active, setActive] = useState(false);
+  const manualFilterId = mediaType === 'video' ? 'both_perspective_match' : FILTER_ID;
+  const autoAvailable = mediaType !== 'video';
 
   const syncSize = useCallback(() => {
     const img = imgRef.current;
@@ -114,7 +117,7 @@ export default function PerspectiveCorrectionPanel({
     setPreviewing(true);
     setError?.('');
     try {
-      const r = await api.forensicsPreviewFilter(sessionId, FILTER_ID, cornersToParams(corners));
+      const r = await api.forensicsPreviewFilter(sessionId, manualFilterId, cornersToParams(corners));
       onPreviewUpdate?.(previewDataUrl(r.preview));
       setStatus?.(t('perspective.previewed', 'Perspective correction preview'));
     } catch (e) {
@@ -122,14 +125,14 @@ export default function PerspectiveCorrectionPanel({
     } finally {
       setPreviewing(false);
     }
-  }, [sessionId, corners, onPreviewUpdate, setStatus, setError, t]);
+  }, [sessionId, corners, manualFilterId, onPreviewUpdate, setStatus, setError, t]);
 
   const applyCorrection = useCallback(async () => {
     if (!sessionId || corners.length < 4) return;
     setApplying(true);
     setError?.('');
     try {
-      const r = await api.forensicsApplyFilter(sessionId, FILTER_ID, cornersToParams(corners), { insertAt: 0 });
+      const r = await api.forensicsApplyFilter(sessionId, manualFilterId, cornersToParams(corners), { insertAt: 0 });
       onApplied?.(r);
       setStatus?.(t('perspective.applied', 'Perspective correction applied to examination frame'));
     } catch (e) {
@@ -137,7 +140,7 @@ export default function PerspectiveCorrectionPanel({
     } finally {
       setApplying(false);
     }
-  }, [sessionId, corners, onApplied, setStatus, setError, t]);
+  }, [sessionId, corners, manualFilterId, onApplied, setStatus, setError, t]);
 
   const autoStraighten = useCallback(async () => {
     if (!sessionId) return;
@@ -222,7 +225,15 @@ export default function PerspectiveCorrectionPanel({
             >
               {applying ? t('perspective.applying', 'Applying…') : t('perspective.apply', 'Apply correction')}
             </button>
-            <button type="button" className="fx-btn" disabled={disabled || !sessionId || applying} onClick={autoStraighten}>
+            <button
+              type="button"
+              className="fx-btn"
+              disabled={disabled || !sessionId || applying || !autoAvailable}
+              onClick={autoStraighten}
+              title={autoAvailable
+                ? t('perspective.auto_btn', 'Auto straighten')
+                : t('perspective.auto_image_only', 'Auto straighten is currently image-only; use corner correction on video frames.')}
+            >
               {t('perspective.auto_btn', 'Auto straighten')}
             </button>
           </div>

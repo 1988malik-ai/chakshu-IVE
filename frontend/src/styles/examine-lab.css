@@ -199,6 +199,32 @@
   background: var(--fx-canvas);
 }
 
+.fx-static-frame-hidden {
+  display: none;
+}
+
+.fx-examine-live-video-frame {
+  display: none;
+  position: relative;
+  min-height: 0;
+  padding: 6px 10px;
+  background: #000;
+}
+
+.fx-examine-live-video-frame.is-active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fx-examine-live-video {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(280px, 34vh);
+  object-fit: contain;
+}
+
 .fx-examine-viewport > .fx-compare,
 .fx-examine-viewport > .fx-compare.fx-compare-lab {
   flex: 0 0 auto !important;
