@@ -213,7 +213,7 @@
 |----|-------------|-----|--------|-------------------|
 | R-150 | Interlaced conversion | MUST | **IMPLEMENTED** | `filters/advanced.py` deinterlace + `video/advanced.py` yadif |
 | R-151 | Geometric distortion correction | MUST | **IMPLEMENTED** | `lens_distortion_correct`, enhanced `geo_*` / `both_lens_correction` |
-| R-152 | Panoramic / omnidirectional | MUST | **PARTIAL** | `adv_panorama` cylindrical unwrap preview |
+| R-152 | Panoramic / omnidirectional | MUST | **IMPLEMENTED** | `src/aive/panorama.py`, `PanoramaConversionPanel.jsx`, `tests/test_panorama_conversion.py` |
 | R-153 | Homomorphic / illumination filters | MUST | **IMPLEMENTED** | `adv_homomorphic`, high-strength `clr_dehaze` |
 | R-154 | Auto contrast/brightness + halo suppression | MUST | **IMPLEMENTED** | `adv_auto_contrast`, `both_auto_contrast` |
 | R-155 | Color separation / component isolation | MUST | **IMPLEMENTED** | `adv_color_separate`, `clr_channel_mixer` |
@@ -275,8 +275,8 @@
 | Metric | Count | Notes |
 |--------|-------|-------|
 | **Total requirements** | 104 | All tracked in this matrix |
-| **IMPLEMENTED** | 86 | 83% strict compliance |
-| **PARTIAL** | 17 | 16% |
+| **IMPLEMENTED** | 87 | 84% strict compliance |
+| **PARTIAL** | 16 | 15% |
 | **PLANNED** | 1 | 1% — multi-image align |
 | **Progress score** | ~91% | Partial items counted at 50% |
 

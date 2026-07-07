@@ -291,6 +291,7 @@ def omnidirectional_panorama(frame: np.ndarray, params: dict[str, Any] | None = 
         fisheye_model=str(p.get("fisheye_model", "equidistant")),  # type: ignore[arg-type]
         yaw_deg=float(p.get("yaw_deg", 0)),
         pitch_deg=float(p.get("pitch_deg", 0)),
+        roll_deg=float(p.get("roll_deg", 0)),
         fov_h_deg=float(p.get("fov_h_deg", 90)),
         fov_v_deg=float(p.get("fov_v_deg", 60)),
         out_width=int(p["out_width"]) if p.get("out_width") else None,

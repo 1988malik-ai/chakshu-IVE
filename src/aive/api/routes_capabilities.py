@@ -736,6 +736,7 @@ class PanoramaConvertBody(BaseModel):
     fisheye_model: str = "equidistant"
     yaw_deg: float = 0.0
     pitch_deg: float = 0.0
+    roll_deg: float = 0.0
     fov_h_deg: float = 90.0
     fov_v_deg: float = 60.0
     out_width: int | None = None
@@ -756,6 +757,7 @@ def advanced_panorama_convert(body: PanoramaConvertBody) -> dict[str, Any]:
         fisheye_model=body.fisheye_model,  # type: ignore[arg-type]
         yaw_deg=body.yaw_deg,
         pitch_deg=body.pitch_deg,
+        roll_deg=body.roll_deg,
         fov_h_deg=body.fov_h_deg,
         fov_v_deg=body.fov_v_deg,
         out_width=body.out_width,
@@ -785,6 +787,7 @@ class PanoramaSessionBody(BaseModel):
     fisheye_model: str = "equidistant"
     yaw_deg: float = 0.0
     pitch_deg: float = 0.0
+    roll_deg: float = 0.0
     fov_h_deg: float = 90.0
     fov_v_deg: float = 60.0
     out_width: int | None = None
@@ -811,6 +814,7 @@ def advanced_panorama_session(body: PanoramaSessionBody) -> dict[str, Any]:
             fisheye_model=body.fisheye_model,  # type: ignore[arg-type]
             yaw_deg=body.yaw_deg,
             pitch_deg=body.pitch_deg,
+            roll_deg=body.roll_deg,
             fov_h_deg=body.fov_h_deg,
             fov_v_deg=body.fov_v_deg,
             out_width=body.out_width,

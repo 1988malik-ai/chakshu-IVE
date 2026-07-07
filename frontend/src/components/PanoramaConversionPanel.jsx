@@ -185,6 +185,16 @@ export default function PanoramaConversionPanel({
                     onChange={(e) => patch({ pitch_deg: Number(e.target.value) })}
                   />
                 </label>
+                <label>
+                  <span>{t('panorama.roll', `Roll ${settings.roll_deg}°`)}</span>
+                  <input
+                    type="range"
+                    min={-180}
+                    max={180}
+                    value={settings.roll_deg}
+                    onChange={(e) => patch({ roll_deg: Number(e.target.value) })}
+                  />
+                </label>
                 {settings.output_type === 'rectilinear' && (
                   <>
                     <label>
@@ -211,6 +221,30 @@ export default function PanoramaConversionPanel({
                 )}
               </>
             )}
+            <label>
+              <span>{t('panorama.width', 'Output width')}</span>
+              <input
+                type="number"
+                className="fx-input"
+                min={128}
+                step={16}
+                placeholder={t('panorama.auto', 'Auto')}
+                value={settings.out_width}
+                onChange={(e) => patch({ out_width: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>{t('panorama.height', 'Output height')}</span>
+              <input
+                type="number"
+                className="fx-input"
+                min={128}
+                step={16}
+                placeholder={t('panorama.auto', 'Auto')}
+                value={settings.out_height}
+                onChange={(e) => patch({ out_height: e.target.value })}
+              />
+            </label>
           </div>
           <div className="fx-export-actions-row">
             <button type="button" className="fx-btn" disabled={disabled || previewing || !sessionId} onClick={runPreview}>

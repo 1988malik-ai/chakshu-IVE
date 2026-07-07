@@ -26,8 +26,11 @@ export const DEFAULT_PANORAMA_SETTINGS = {
   fisheye_model: 'equidistant',
   yaw_deg: 0,
   pitch_deg: 0,
+  roll_deg: 0,
   fov_h_deg: 90,
   fov_v_deg: 60,
+  out_width: '',
+  out_height: '',
 };
 
 export function panoramaParams(settings) {
@@ -38,8 +41,11 @@ export function panoramaParams(settings) {
     fisheye_model: settings.fisheye_model,
     yaw_deg: Number(settings.yaw_deg),
     pitch_deg: Number(settings.pitch_deg),
+    roll_deg: Number(settings.roll_deg),
     fov_h_deg: Number(settings.fov_h_deg),
     fov_v_deg: Number(settings.fov_v_deg),
+    ...(settings.out_width ? { out_width: Number(settings.out_width) } : {}),
+    ...(settings.out_height ? { out_height: Number(settings.out_height) } : {}),
   };
 }
 

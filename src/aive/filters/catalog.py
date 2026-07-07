@@ -231,6 +231,7 @@ FILTER_CATALOG: list[FilterSpec] = [
         fisheye_model="equidistant",
         yaw_deg=0.0,
         pitch_deg=0.0,
+        roll_deg=0.0,
         fov_h_deg=90.0,
         fov_v_deg=60.0,
     ),

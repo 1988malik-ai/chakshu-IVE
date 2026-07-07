@@ -29,14 +29,17 @@ def _require_cv2() -> None:
         raise RuntimeError("OpenCV required for panoramic conversion (pip install opencv-python-headless)")
 
 
-def _rotation_yaw_pitch(yaw_deg: float, pitch_deg: float) -> np.ndarray:
+def _rotation_yaw_pitch_roll(yaw_deg: float, pitch_deg: float, roll_deg: float = 0.0) -> np.ndarray:
     yaw = np.deg2rad(yaw_deg)
     pitch = np.deg2rad(pitch_deg)
+    roll = np.deg2rad(roll_deg)
     cy, sy = np.cos(yaw), np.sin(yaw)
     cp, sp = np.cos(pitch), np.sin(pitch)
+    cr, sr = np.cos(roll), np.sin(roll)
     ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], dtype=np.float64)
     rx = np.array([[1, 0, 0], [0, cp, -sp], [0, sp, cp]], dtype=np.float64)
-    return ry @ rx
+    rz = np.array([[cr, -sr, 0], [sr, cr, 0], [0, 0, 1]], dtype=np.float64)
+    return ry @ rx @ rz
 
 
 def _lonlat_to_equirect_maps(
@@ -122,6 +125,7 @@ def equirectangular_to_rectilinear(
     *,
     yaw_deg: float = 0.0,
     pitch_deg: float = 0.0,
+    roll_deg: float = 0.0,
     fov_h_deg: float = 90.0,
     fov_v_deg: float = 60.0,
     out_width: int | None = None,
@@ -144,7 +148,7 @@ def equirectangular_to_rectilinear(
     dirs = np.stack([u_g * tan_h, v_g * tan_v, np.ones_like(u_g)], axis=-1)
     dirs /= np.linalg.norm(dirs, axis=-1, keepdims=True)
 
-    rot = _rotation_yaw_pitch(yaw_deg, pitch_deg)
+    rot = _rotation_yaw_pitch_roll(yaw_deg, pitch_deg, roll_deg)
     world = dirs @ rot.T
     lon = np.arctan2(world[..., 0], world[..., 2])
     lat = np.arcsin(np.clip(world[..., 1], -1.0, 1.0))
@@ -178,6 +182,7 @@ def convert_omnidirectional(
     fisheye_model: FisheyeModel = "equidistant",
     yaw_deg: float = 0.0,
     pitch_deg: float = 0.0,
+    roll_deg: float = 0.0,
     fov_h_deg: float = 90.0,
     fov_v_deg: float = 60.0,
     out_width: int | None = None,
@@ -207,6 +212,7 @@ def convert_omnidirectional(
             eq,
             yaw_deg=yaw_deg,
             pitch_deg=pitch_deg,
+            roll_deg=roll_deg,
             fov_h_deg=fov_h_deg,
             fov_v_deg=fov_v_deg,
             out_width=out_width,
@@ -223,6 +229,7 @@ def convert_omnidirectional(
                 frame,
                 yaw_deg=yaw_deg,
                 pitch_deg=pitch_deg,
+                roll_deg=roll_deg,
                 fov_h_deg=fov_h_deg,
                 fov_v_deg=fov_v_deg,
                 out_width=out_width,

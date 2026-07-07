@@ -57,7 +57,7 @@ Related references:
 | Video overlays and side-by-side comparison | Implemented | `VideoOverlayComparePanel.jsx`, compare library, `/api/capabilities/compare/export-image` | Examination Lab -> Video Tools -> compare/overlay -> Preview compare -> Export compare JPEG | Side-by-side/PiP overlay previews and a JPEG export file is written |
 | PiP display | Implemented | Video overlay compare settings, `draw_pip` | Enable PiP mode, choose position, preview/export | PiP appears in selected position and exports as a composed frame |
 | Geometric distortion/perspective correction | Implemented | `PerspectiveCorrectionPanel.jsx`, `geo_keystone`, `both_perspective_match` | Geometry Correction -> Perspective correction -> drag corners -> Preview/Apply | Corrected preview appears; Apply updates frame; Revert correction restores |
-| Panoramic conversion | Implemented | `PanoramaConversionPanel.jsx`, `adv_omni_panorama` | Geometry Correction -> Omnidirectional -> Panorama | Preview/apply produces flattened panorama/perspective view |
+| Panoramic / omnidirectional conversion | Implemented | `src/aive/panorama.py`, `PanoramaConversionPanel.jsx`, `adv_omni_panorama` | Geometry Correction -> Omnidirectional -> Panorama; choose fisheye or equirectangular, output type, yaw/pitch/roll, size; Preview/Apply/Save | Preview/apply produces flattened panorama or rectilinear perspective view; JPEG export is written |
 | Illumination correction algorithms | Implemented | `src/aive/filters/illumination.py`, filters `ill_homomorphic`, `ill_retinex`, `ill_adaptive_flatten` | Search illumination filters, apply each to image/video frame | Uneven lighting changes and pipeline records filter |
 | Contrast/brightness auto adjustment | Implemented | Filter catalog and forensic ops | Apply Auto Contrast / Auto Levels / Brightness | Preview changes and can reset to original |
 | Color/component separation | Implemented | Filter catalog `adv_color_separate`, channel tools | Apply color separation/channel filters | Output isolates or adjusts target channel |
@@ -142,6 +142,12 @@ Video overlay / PiP composition:
 
 ```bash
 PYTHONPATH=src pytest tests/test_compare_overlays.py -q
+```
+
+Panoramic / omnidirectional conversion:
+
+```bash
+PYTHONPATH=src pytest tests/test_panorama_conversion.py -q
 ```
 
 Frontend build:
