@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { normalizeDir, outputDirForCase } from '../lib/exportPaths';
+import { resolvedExportPaths } from '../lib/exportPaths';
 
 const TEMPLATES = ['standard', 'detailed', 'executive', 'minimal'];
 const PAPER_SIZES = ['A4', 'Letter', 'Legal', 'A3'];
@@ -15,11 +15,12 @@ export default function CaseReportsPanel({
   setError,
   notify,
 }) {
+  const defaultOutputDir = useMemo(() => (
+    resolvedExportPaths(exportForm || {}).reports_dir || '~/Desktop/chakshu-export/reports'
+  ), [exportForm]);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [outputDir, setOutputDir] = useState(
-    () => outputDirForCase(`${normalizeDir(exportForm?.output_dir)}/reports`, forensicCase),
-  );
+  const [outputDir, setOutputDir] = useState(defaultOutputDir);
   const [template, setTemplate] = useState('detailed');
   const [paperSize, setPaperSize] = useState('A4');
   const [orientation, setOrientation] = useState('portrait');
@@ -40,6 +41,14 @@ export default function CaseReportsPanel({
       );
     }
   }, [forensicCase, t, title]);
+
+  useEffect(() => {
+    setOutputDir((current) => (
+      !current || current === '[object Object]' || typeof current !== 'string'
+        ? defaultOutputDir
+        : current
+    ));
+  }, [defaultOutputDir]);
 
   const refreshPreview = useCallback(async () => {
     try {

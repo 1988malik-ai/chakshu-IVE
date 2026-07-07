@@ -473,7 +473,7 @@ export default function ForensicApp() {
     });
   }, [sessionId, storagePath, exportForm.input_path, autoOpenLab, applyToSession]);
 
-  const showWorkflowBar = !['command', 'examine', 'capture', 'markup', 'timeline', 'tools', 'custody', 'settings'].includes(page);
+  const showWorkflowBar = !['command', 'examine', 'capture', 'markup', 'timeline', 'tools', 'custody', 'export', 'reports', 'settings'].includes(page);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -2021,24 +2021,26 @@ export default function ForensicApp() {
         )}
 
         {page === 'export' && (
-          <LegalExportPanel
-            exportForm={exportForm}
-            setExportForm={setExportForm}
-            sessionId={sessionId}
-            forensicCase={forensicCase}
-            hasPreview={Boolean(preview)}
-            mediaType={mediaType}
-            hasEvidence={hasEvidence}
-            filterChain={filterChain}
-            t={t}
-            setStatus={setStatus}
-            setError={reportError}
-            notify={notify}
-          />
+          <div className="fx-content fx-export-page">
+            <LegalExportPanel
+              exportForm={exportForm}
+              setExportForm={setExportForm}
+              sessionId={sessionId}
+              forensicCase={forensicCase}
+              hasPreview={Boolean(preview)}
+              mediaType={mediaType}
+              hasEvidence={hasEvidence}
+              filterChain={filterChain}
+              t={t}
+              setStatus={setStatus}
+              setError={reportError}
+              notify={notify}
+            />
+          </div>
         )}
 
         {page === 'reports' && (
-          <div className="fx-content">
+          <div className="fx-content fx-reports-page">
             <CaseReportsPanel
               t={t}
               forensicCase={forensicCase}

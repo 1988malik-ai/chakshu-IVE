@@ -52,7 +52,7 @@ export function derivePathsFromOutputDir(outputDir) {
 
 export function outputDirForCase(baseDir, forensicCase) {
   const root = projectRootForCase(baseDir, forensicCase);
-  return deriveProjectPaths(root, DEFAULT_FOLDER_VALUES);
+  return deriveProjectPaths(root, DEFAULT_FOLDER_VALUES).reports_dir;
 }
 
 export function loadExportFormFromStorage() {
