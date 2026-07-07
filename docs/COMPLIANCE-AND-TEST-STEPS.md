@@ -33,6 +33,117 @@ Related references:
    - Optional VFR phone/screen-recorded clip.
    - Optional SRT subtitle file.
 
+## Requirement-Level Verification Matrix
+
+Use this table for release sign-off. Each row maps directly to `docs/REQUIREMENTS-COMPLIANCE.md`.
+
+| ID | Acceptance Test Steps | Pass Criteria |
+|---|---|---|
+| R-001 | Start app, call `GET /api/filters`, or run the filter-count smoke command below. | At least 140 filters are returned; current catalog is 191. |
+| R-002 | Start backend and frontend locally, then open `http://localhost:9451` without cloud services. | App opens and can ingest evidence in standalone mode. |
+| R-003 | Run license generator help and check trial/license validation path. | License/trial status is available and hardware-bound validation code is present. |
+| R-004 | Ingest image/video frame, apply several visible filters, then reset. | Preview changes, pipeline records filter, reset restores original. |
+| R-010 | Ingest a common MP4/MOV file supported by local FFmpeg. | Video loads, first frame appears, duration/timeline metadata appears. |
+| R-011 | On Windows, ingest a camera/DirectShow-compatible file or source; verify fallback. | Media opens via adapter or clear FFmpeg fallback. |
+| R-012 | On Windows, ingest a legacy AVI/VfW sample. | File opens or compatibility limitation is reported clearly. |
+| R-013 | Ingest a QuickTime/MOV sample. | MOV loads if local codecs/FFmpeg support it; failure gives clear message. |
+| R-014 | Ingest/export several standard formats such as MP4, MOV, AVI, JPG, PNG, TIFF. | Supported formats load/export; unsupported codecs fail gracefully. |
+| R-020 | Apply a filter, fill bookmark metadata, click frame and filter bookmark buttons. | Bookmark appears with label, notes, tags, priority, and can be edited/deleted. |
+| R-021 | Save/export project YAML after ingest and filter operations. | `.aive.yaml` is human-readable and includes case/project data. |
+| R-022 | Import a compatible JSON/YAML project file. | Project data loads or unsupported fields are reported cleanly. |
+| R-030 | Legal Export: export a compatible video with stream copy enabled. | Output exists and command uses minimal transcoding where possible. |
+| R-031 | Legal Export: select CFR mode and fixed FPS, then export. | Output exists and exporter command forces constant frame rate. |
+| R-032 | Legal Export: select VFR mode, then export a VFR-capable clip. | Output exists and exporter preserves variable timing mode. |
+| R-033 | Batch conversion: queue multiple files/folder and run. | Multiple outputs are created with per-file status. |
+| R-034 | Legal Export: export selected frames to PDF with page/layout settings. | PDF exists and uses selected paper/orientation/layout. |
+| R-035 | Legal Export: export media bundle with original and processed output enabled. | Bundle contains original, processed media, and settings metadata. |
+| R-036 | Timeline/Export: export I-frames from a video. | I-frame files are written to output folder. |
+| R-037 | Export a trimmed segment using start/end times without filters. | Trimmed output exists and uses copy path when compatible. |
+| R-038 | Export a user-defined list of frame indices. | Requested frame images are written and named predictably. |
+| R-040 | Ingest JPEG, PNG, TIFF, and BMP samples. | Each supported image opens and previews. |
+| R-041 | Ingest RAW/specialized sample with optional dependencies installed. | Supported RAW opens; missing dependency is clearly reported. |
+| R-042 | Scan/load evidence from nested folders. | Nested files are discovered and paths remain organized. |
+| R-050 | Apply filters or edits, use Undo and Redo endpoints/UI if exposed. | State rolls back and reapplies without corrupting session. |
+| R-051 | Load primary video and secondary/compare video. | Secondary path/session is accepted and compare tools can reference it. |
+| R-052 | Apply filters, geometry correction, and reset/re-render. | Original/master frame remains recoverable; edits are non-destructive. |
+| R-060 | Legal Export: choose Auto GPU or GPU codec on capable hardware. | GPU encoder is selected if available; CPU fallback works otherwise. |
+| R-070 | Timeline Pro: load video and inspect timestamps. | Timestamp/PTS metadata is extracted. |
+| R-071 | Run stream analysis/demux on video. | Stream list or demux result appears without crashing. |
+| R-072 | Timeline/Stream Analysis: analyze I/P/B frames. | Frame type distribution is shown. |
+| R-073 | Inspect frame metadata and filter/seek by frame/time. | Per-frame metadata appears and selected frame loads. |
+| R-074 | Forensic Tools: run MPEG macroblock or motion visualization. | Overlay preview appears or codec limitation is reported. |
+| R-075 | Timeline Pro: seek by time, frame, and nearest I-frame. | Preview jumps to expected frame/time. |
+| R-080 | Video Tools: draw tracking box, run tracking, inspect key/auto tracking result. | Track result contains frames/boxes or clear failure reason. |
+| R-081 | Save tracking data, reload it, then reuse for stabilization/export. | Saved tracking JSON reloads and drives later operation. |
+| R-082 | Markup Studio: use arrow, rectangle, line, text, measure, redact. | Each tool draws at cursor and appears in annotation list. |
+| R-083 | Add annotations on a frame and apply to frame/export. | Annotation burns/applies to current frame and persists. |
+| R-084 | Add multiple annotations with same group ID. | Group ID is stored and shown for grouped annotations. |
+| R-085 | Enable snap/guides and draw annotations/measurements. | Points snap to grid/guides consistently. |
+| R-090 | Forensic Tools: choose AI enhancement and apply to frame. | Preview changes and operation completes. |
+| R-091 | Import/select ONNX model path where available. | Model import path accepts valid model or reports runtime dependency. |
+| R-100 | Settings: change UI/report language. | UI/report strings switch to selected locale where translated. |
+| R-101 | Settings: enable accessibility/high contrast/color-vision/text-size options. | UI updates without layout breakage. |
+| R-110 | Load video and extract audio stream. | Audio output file is created. |
+| R-111 | Use audio player volume and mute controls. | Volume changes/mute state affects playback. |
+| R-112 | Timeline Pro: step frame-by-frame while synced audio is available. | Frame time and audio sync metadata stay aligned. |
+| R-113 | Inspect audio channels for a multichannel sample. | Channel list/metadata is returned. |
+| R-114 | Add an audio redaction/mute region and export. | Selected region is muted in output. |
+| R-115 | Add or replace an audio stream with external audio. | Output video contains selected audio stream. |
+| R-116 | Apply A/V offset and export/mux. | Output uses requested offset. |
+| R-117 | Mux shorter/longer audio and use pad-video option. | Output duration is reconciled by padding where requested. |
+| R-120 | Load SRT/SMI subtitle and preview/burn. | Subtitle appears at expected timestamp. |
+| R-121 | Change subtitle font/position/style and burn. | Output reflects selected subtitle style. |
+| R-122 | Apply timestamp overlay with selected format/position. | Timestamp appears on preview/exported frame. |
+| R-123 | Enable grid overlay and burn/apply. | Grid appears with selected preset/opacity. |
+| R-124 | Video Tools: browse second video, preview side-by-side, export compare JPEG. | Side-by-side preview appears and JPEG export file is written. |
+| R-125 | Video Tools: set PiP source, position/scale, apply/export. | Inset appears in chosen corner and composed frame exports. |
+| R-130 | Case Reports: generate HTML/PDF/DOCX report. | Requested report files are written. |
+| R-131 | Case Reports: switch paper size A4/Letter/Legal/A3. | Generated report uses selected page size. |
+| R-132 | Case Reports: switch template type. | Report content/layout follows selected template. |
+| R-133 | Run secure copy and include/cross-reference in report workflow. | Secure copy report exists and can be attached/referenced. |
+| R-134 | Forensic Tools: copy/export current frame to office/clipboard path. | Frame copy/export succeeds. |
+| R-140 | Hash Evidence File. | MD5, SHA-1, SHA-256, SHA-512 are shown. |
+| R-141 | Hash current frame. | Frame-level hash is returned for loaded frame. |
+| R-142 | Secure Copy + Report. | Copied file hash matches source and report is generated. |
+| R-143 | Ingest, enhance, export, then open Chain of Custody. | Custody log records actions with time/actor/file. |
+| R-144 | Perform several operations and inspect audit log output. | Audit entries are appended with action details. |
+| R-145 | Legal Export: scan secure media folder, load references, batch export. | Manifest and verified batch export files are created. |
+| R-150 | Apply deinterlace/interlace conversion to sample. | Output frame/video visibly changes or export succeeds. |
+| R-151 | Apply lens/geometric distortion correction. | Corrected preview/output is generated. |
+| R-152 | Geometry Correction: Omnidirectional -> Panorama; preview/apply/save. | Panoramic/rectilinear output changes and JPEG is written. |
+| R-153 | Apply Homomorphic/Retinex/Adaptive illumination correction. | Uneven lighting changes and filter is recorded. |
+| R-154 | Apply auto contrast/brightness/levels. | Tone changes with no crash and can reset. |
+| R-155 | Apply color channel separation/isolation. | Selected channel/component is isolated or adjusted. |
+| R-156 | Apply motion deblur/defocus deblur. | Restored/sharpened output is produced. |
+| R-157 | Attempt multi-image perspective alignment with planned test case. | Currently planned; acceptance requires multi-image input workflow. |
+| R-158 | Run perspective stabilization on video. | Stabilized output is produced or limitation is clearly reported. |
+| R-159 | Load video frame, apply Super Resolution. | Frame dimensions/detail increase and preview updates. |
+| R-160 | Run video stabilization/deshake or tracking stabilization. | Stabilized video export exists. |
+| R-161 | Export FPS-adjusted video using duplicate/drop method. | Output FPS matches selected target. |
+| R-162 | Manually set target FPS and export. | Output uses target FPS. |
+| R-163 | Redact/blur/pixelate a region. | Region is obscured in preview/export. |
+| R-164 | Create freeze-frame/placeholder video segment. | Output holds selected frame for requested duration. |
+| R-165 | Reverse video playback/export. | Output plays in reverse order. |
+| R-166 | Apply JPEG artifact reduction. | Compression artifacts are reduced or output changes visibly. |
+| R-167 | Apply channel invert/replace. | Selected channel operation is visible. |
+| R-170 | Markup Studio: measure line with calibration and error fields. | Distance includes selected unit and +/- uncertainty. |
+| R-171 | Measure object displacement with delta time/speed field. | Speed is computed with uncertainty. |
+| R-172 | Run stream sync/similarity on two media streams. | Similarity/sync score is returned. |
+| R-173 | Merge or sequence multiple video/audio streams. | Merged output file exists. |
+| R-174 | Load VFR sample and seek/play by timestamp. | VFR is detected and timestamp/PTS seeking works. |
+| R-175 | Edit timestamp overlay and run region analysis. | Timestamp applies and region analysis table appears. |
+| R-180 | Live Capture: start webcam/backend device. | Live preview appears. |
+| R-181 | Build video from image sequence folder. | Output MP4 is created from frames. |
+| R-182 | Live Capture: select live filter and preview. | Stream updates with selected filter. |
+| R-183 | Live Capture: record 5s screen. | Screen capture file is created. |
+| R-190 | Run Windows 64-bit package/install workflow. | App installs/starts on Windows 64-bit. |
+| R-191 | Run 32-bit build profile on compatible Windows environment. | Build artifact is produced or dependency limitation documented. |
+| R-192 | Enable operation logging and perform actions. | Log file records operations. |
+| R-193 | Export VMS-compatible H.264/yuv420p/faststart video and test in target VMS/player. | Export plays in target player/VMS. |
+| R-194 | Export external metadata via FFprobe/EXIF. | Metadata JSON/file is generated. |
+| R-195 | Open Notes, add linked note, reload project. | Note persists in project state. |
+| R-196 | Open example workflows/resources. | Example project/workflow is accessible and loadable. |
+
 ## High-Priority Compliance Checklist
 
 | Requirement | Status | Evidence | Test Steps | Pass Criteria |

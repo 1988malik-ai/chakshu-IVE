@@ -7,7 +7,7 @@
 **Date:** 2026-05-29  
 **Classification:** Internal / Procurement Support  
 
-**Test guide:** See [`docs/REQUIREMENTS-TEST-GUIDE.md`](REQUIREMENTS-TEST-GUIDE.md) for step-by-step verification of each requirement ID.  
+**Test guide:** See [`docs/COMPLIANCE-AND-TEST-STEPS.md`](COMPLIANCE-AND-TEST-STEPS.md) for requirement-level acceptance steps and [`docs/REQUIREMENTS-TEST-GUIDE.md`](REQUIREMENTS-TEST-GUIDE.md) for workflow detail.  
 **Workflow testing:** [`docs/WORKFLOW-TEST-GUIDE.md`](WORKFLOW-TEST-GUIDE.md) — end-to-end examiner scenarios (WF-01 … WF-12).  
 **Printable checklist:** [`docs/REQUIREMENTS-TEST-CHECKLIST.md`](REQUIREMENTS-TEST-CHECKLIST.md) · **Smoke script:** `scripts/run-requirements-smoke.sh`
 
