@@ -35,6 +35,36 @@ Output: `desktop\dist\Chakshu-Setup-1.0.0.exe`
 
 Full guide: [`docs/WINDOWS-INSTALL.md`](../docs/WINDOWS-INSTALL.md)
 
+## GitHub Actions + S3 publishing
+
+The workflow `.github/workflows/build-windows.yml` builds on every push to `main`/`master` and publishes release artifacts to S3:
+
+```text
+s3://<CHAKSHU_S3_BUCKET>/chakshu/<branch>/<commit-sha>/
+s3://<CHAKSHU_S3_BUCKET>/chakshu/latest/
+```
+
+Configure these repository secrets:
+
+| Name | Purpose |
+|------|---------|
+| `CHAKSHU_S3_BUCKET` | Target bucket name, without `s3://` |
+| `AWS_ACCESS_KEY_ID` | IAM access key with write access to the bucket |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret key |
+
+Optional repository variable:
+
+| Name | Default | Purpose |
+|------|---------|---------|
+| `AWS_REGION` | `ap-south-1` | Region used by `aws-actions/configure-aws-credentials` |
+
+Artifacts uploaded:
+
+- `Chakshu-Setup-*.exe` — NSIS installer
+- `Chakshu-Native-*.exe` — native portable Electron app
+- `Chakshu-Portable.zip` — browser/portable package
+- `manifest.json` — file sizes, SHA-256 hashes, branch, commit, and workflow run metadata
+
 ### What gets packaged
 
 1. `dist-backend/aive-api.exe` — PyInstaller bundle (FastAPI, OpenCV, FFmpeg)

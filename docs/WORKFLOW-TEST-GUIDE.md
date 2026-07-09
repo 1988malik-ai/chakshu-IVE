@@ -513,7 +513,7 @@ curl -s http://127.0.0.1:9450/api/i18n/gu | head -c 300
 |------|------------|------------|
 | Video path | Must be full saved path for tools | Re-ingest or Load by Path |
 | Stabilize | vidstab may be missing in FFmpeg | deshake fallback; note in report |
-| R-145 / R-157 | Secure batch / multi-image align | Not in UI — skip |
+| Multi-image align | Requires saved image paths | Use Geometry Correction with full reference/target paths |
 | Multi-video UI | Secondary stream API only | WF-08 API step |
 | Clipboard | Browser permission for Copy Frame | Allow clipboard when prompted |
 

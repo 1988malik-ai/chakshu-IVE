@@ -148,6 +148,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),
     }),
+  projectImportInspect: (path) =>
+    request('/api/project/import/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    }),
   projectYaml: () => request('/api/project/export-yaml'),
   projectNotes: () => request('/api/project/notes'),
   projectNoteAdd: (body) =>
@@ -314,6 +320,7 @@ export const api = {
     request(`/api/capabilities/hash/frame?session_id=${encodeURIComponent(sessionId)}&algorithm=${algorithm}`),
   capSecureCopy: (body) =>
     request('/api/capabilities/copy/secure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  mediaFormats: () => request('/api/capabilities/media/formats'),
   capVideoInfo: (path) =>
     request('/api/capabilities/video/info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) }),
   capSeekTime: (path, time_sec) =>
@@ -448,6 +455,8 @@ export const api = {
     request('/api/capabilities/advanced/panorama-convert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   capPanoramaSession: (body) =>
     request('/api/capabilities/advanced/panorama-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  capMultiImageAlign: (body) =>
+    request('/api/capabilities/advanced/multi-image-align', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
 
   trackingRun: (body) =>
     request('/api/tracking/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),

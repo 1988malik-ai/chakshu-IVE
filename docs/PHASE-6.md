@@ -35,8 +35,7 @@ POST /api/capabilities/advanced/perspective-stabilize  # R-158
 
 ## Remaining gaps
 
-- **R-157** Multi-image perspective alignment — needs multi-image input UI
-- **R-152 / R-158** Panorama and perspective stabilization — preview/frame-level only; full multi-frame tracking deferred
+- **R-158** Perspective stabilization — preview/frame-level workflow exists; full multi-frame tracking polish remains deferred
 
 ## Run
 

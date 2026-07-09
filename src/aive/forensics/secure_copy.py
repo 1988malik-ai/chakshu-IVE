@@ -52,4 +52,10 @@ def secure_copy(source: Path, destination: Path, report_path: Path | None = None
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(asdict(report), indent=2), encoding="utf-8")
 
-    return {"success": True, "verified": verified, "report": asdict(report)}
+    return {
+        "success": True,
+        "verified": verified,
+        "report": asdict(report),
+        "report_path": str(report_path) if report_path else None,
+        "destination": str(destination),
+    }

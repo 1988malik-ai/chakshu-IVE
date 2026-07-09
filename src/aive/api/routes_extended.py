@@ -19,7 +19,7 @@ from aive.export.pdf_frames import PdfLayoutSettings, export_frames_to_pdf
 from aive.project import examination_notes
 from aive.bookmarks.store import BookmarkStore
 from aive.forensics.case import case_store
-from aive.project.workflow import project_store
+from aive.project.workflow import inspect_compatible_project, project_store
 from aive.reports.generator import ReportSettings, generate_report
 
 _bookmark_store = BookmarkStore()
@@ -331,6 +331,10 @@ def api_project_import(body: ProjectImportRequest) -> dict[str, Any]:
     p = expand_path(body.path)
     if not p.exists():
         raise HTTPException(404, "Project file not found")
+    summary = inspect_compatible_project(p)
+    if not summary.get("supported"):
+        warnings = "; ".join(summary.get("warnings", []))
+        raise HTTPException(400, f"Project format is not compatible. {warnings}".strip())
     proj = project_store.import_compatible(p)
     from aive.project import examination_notes as en
 
@@ -339,7 +343,16 @@ def api_project_import(body: ProjectImportRequest) -> dict[str, Any]:
         "project_id": proj.project_id,
         "name": proj.name,
         "steps": len(proj.workflow_steps),
+        "summary": summary,
     }
+
+
+@router.post("/project/import/inspect")
+def api_project_import_inspect(body: ProjectImportRequest) -> dict[str, Any]:
+    p = expand_path(body.path)
+    if not p.exists():
+        raise HTTPException(404, "Project file not found")
+    return inspect_compatible_project(p)
 
 
 @router.get("/project/current")

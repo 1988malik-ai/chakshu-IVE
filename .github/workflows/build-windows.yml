@@ -83,6 +83,30 @@ jobs:
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item desktop/dist/Chakshu-Native-*.exe release/
 
+      - name: Stage release artifacts for publishing
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/s3 | Out-Null
+          Copy-Item desktop/dist/Chakshu-Setup-*.exe release/s3/
+          Copy-Item release/Chakshu-Native-*.exe release/s3/
+          Copy-Item release/Chakshu-Portable.zip release/s3/
+          $manifest = [ordered]@{
+            product = "Chakshu Forensics"
+            version = "1.0.0"
+            ref = "${{ github.ref_name }}"
+            sha = "${{ github.sha }}"
+            run_id = "${{ github.run_id }}"
+            created_utc = (Get-Date).ToUniversalTime().ToString("o")
+            artifacts = @(Get-ChildItem release/s3 | ForEach-Object {
+              [ordered]@{
+                name = $_.Name
+                size_bytes = $_.Length
+                sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+              }
+            })
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content release/s3/manifest.json -Encoding UTF8
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
@@ -103,3 +127,26 @@ jobs:
           name: Chakshu-Native
           path: release/Chakshu-Native-*.exe
           if-no-files-found: error
+
+      - name: Configure AWS credentials for S3 publish
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Publish artifacts to S3 chakshu folder
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          CHAKSHU_S3_BUCKET: ${{ secrets.CHAKSHU_S3_BUCKET }}
+        run: |
+          if (-not $env:CHAKSHU_S3_BUCKET) { throw "Missing CHAKSHU_S3_BUCKET secret" }
+          $branch = "${{ github.ref_name }}" -replace '[^A-Za-z0-9._-]', '-'
+          $sha = "${{ github.sha }}"
+          $versioned = "s3://$env:CHAKSHU_S3_BUCKET/chakshu/$branch/$sha/"
+          $latest = "s3://$env:CHAKSHU_S3_BUCKET/chakshu/latest/"
+          aws s3 sync release/s3 $versioned --delete
+          aws s3 sync release/s3 $latest --delete
+          "Published artifacts to $versioned and $latest"

@@ -6,6 +6,8 @@ import ExamCanvas from './components/ExamCanvas';
 import LiveCapture from './components/LiveCapture';
 import LocaleSettings from './components/LocaleSettings';
 import ProjectStructureSettings from './components/ProjectStructureSettings';
+import MediaCompatibilityPanel from './components/MediaCompatibilityPanel';
+import ProjectImportPanel from './components/ProjectImportPanel';
 import ExamCompareDock from './components/ExamCompareDock';
 import ProjectNotesPanel from './components/ProjectNotesPanel';
 import LegalExportPanel from './components/LegalExportPanel';
@@ -34,6 +36,7 @@ import GridOverlayPanel from './components/GridOverlayPanel';
 import TimestampEditorPanel from './components/TimestampEditorPanel';
 import PerspectiveCorrectionPanel from './components/PerspectiveCorrectionPanel';
 import PanoramaConversionPanel from './components/PanoramaConversionPanel';
+import MultiImageAlignmentPanel from './components/MultiImageAlignmentPanel';
 import VideoOverlayComparePanel from './components/VideoOverlayComparePanel';
 import TrackingStabilizePanel from './components/TrackingStabilizePanel';
 import RegionAnalysisPanel from './components/RegionAnalysisPanel';
@@ -935,6 +938,8 @@ export default function ForensicApp() {
                 setStatus={setStatus}
                 setError={reportError}
               />
+              <MediaCompatibilityPanel t={t} setError={reportError} />
+              <ProjectImportPanel t={t} setStatus={setStatus} setError={reportError} />
             </div>
           </div>
         )}
@@ -1324,6 +1329,15 @@ export default function ForensicApp() {
                 setStatus={setStatus}
                 setError={setError}
                 notify={notify}
+                reportSuccess={reportSuccess}
+                reportError={reportError}
+                t={t}
+              />
+              <MultiImageAlignmentPanel
+                inputPath={exportForm.input_path || storagePath}
+                exportForm={exportForm}
+                disabled={!hasEvidence}
+                setStatus={setStatus}
                 reportSuccess={reportSuccess}
                 reportError={reportError}
                 t={t}

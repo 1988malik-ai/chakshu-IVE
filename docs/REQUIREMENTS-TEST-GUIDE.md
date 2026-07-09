@@ -94,7 +94,7 @@ curl -s -X POST "http://127.0.0.1:9450/api/media/upload?session_id=$SESSION" -F 
 | **R-011** | DirectShow (Windows) | PARTIAL | Windows only: load capture device or legacy adapter path; else verify FFmpeg fallback on macOS/Linux | Video still decodes via FFmpeg |
 | **R-012** | Video for Windows | PARTIAL | Windows: adapter module present; cross-platform: FFmpeg fallback | Document platform; decode succeeds |
 | **R-013** | QuickTime | PARTIAL | Load `.mov` if available; else confirm FFmpeg probe | Opens or clear FFmpeg error |
-| **R-014** | Standard formats + codecs | PARTIAL | **Legal Export** → export presets; try `mp4_h264`, `mkv_copy` via `POST /api/export` | Output file plays in VLC |
+| **R-014** | Standard formats + codecs | IMPLEMENTED | **Settings** → Media compatibility; `GET /api/capabilities/media/formats`; export `mp4_h264` and `mkv_copy` via Legal Export / `POST /api/export` | FFmpeg/system codec source is shown; accepted extensions are listed; output files play in VLC |
 
 ---
 
@@ -104,7 +104,7 @@ curl -s -X POST "http://127.0.0.1:9450/api/media/upload?session_id=$SESSION" -F 
 |----|-------------|--------|-------------|---------------|
 | **R-020** | Bookmarks | IMPLEMENTED | UI: **Examination Lab** or **Forensic Tools** → **Bookmarks (R-020)** → load evidence by path → scrub to a frame → fill label/notes/tags/priority/examiner → **Bookmark this frame**. Apply a filter → **Bookmark current filter** → **Go to** / **Edit** / **Delete**. API: `POST /api/bookmarks` (frame or `bookmark_type: filter` + `filter_id` + `metadata`); `GET /api/bookmarks?media_path=...`; `PATCH` / `DELETE` `/api/bookmarks/{id}` | Bookmarks persist in `~/.ai-ive/bookmarks.json`; jump restores time and filter; project workflow logs `bookmark_frame` / `bookmark_filter` |
 | **R-021** | Human-readable project | IMPLEMENTED | API: `GET /api/project/current`; `POST /api/project/save`; inspect `~/.ai-ive/projects/*.aive.yaml` | YAML readable; steps recorded |
-| **R-022** | Import projects | PARTIAL | API: `POST /api/project/import` with exported YAML/JSON | Project loads; partial external formats may fail gracefully |
+| **R-022** | Import projects | IMPLEMENTED | **Settings** → Project import → enter `.aive.yaml`, `.aive.yml`, or compatible `.json` path → **Inspect** → **Import project**; API: `POST /api/project/import/inspect`, then `/api/project/import` | Compatibility summary shows format/counts/warnings; supported project imports and becomes active |
 
 ---
 
@@ -129,7 +129,7 @@ curl -s -X POST "http://127.0.0.1:9450/api/media/upload?session_id=$SESSION" -F 
 | ID | Requirement | Status | How to test | Pass criteria |
 |----|-------------|--------|-------------|---------------|
 | **R-040** | JPEG, PNG, TIFF, BMP | IMPLEMENTED | Ingest each format via **Ingest Evidence** | Preview loads for each |
-| **R-041** | RAW formats | PARTIAL | Load `.dng`/`.cr2` with `rawpy` installed | Opens or clear “install rawpy” message |
+| **R-041** | RAW formats | IMPLEMENTED | **Settings** → Media compatibility confirms RAW dependency; ingest `.dng`/`.cr2` with `rawpy` installed, or without it for diagnostics | RAW opens when `rawpy` is installed; otherwise UI shows actionable `pip install rawpy` guidance |
 | **R-042** | Nested folders | IMPLEMENTED | API/library: scan folder with subdirs | All supported files listed |
 
 ---
@@ -209,7 +209,7 @@ curl -s -X POST http://127.0.0.1:9450/api/markup/annotations \
 | ID | Requirement | Status | How to test | Pass criteria |
 |----|-------------|--------|-------------|---------------|
 | **R-110** | Audio extraction | IMPLEMENTED | **Legal Export** → Extract audio; `POST /api/export/audio` | `.aac`/`.wav` created |
-| **R-111** | Volume / mute | PARTIAL | **Examination Lab** → AudioPlayer volume slider | Volume changes; mute if present |
+| **R-111** | Volume / mute | IMPLEMENTED | Load video → Evidence Path audio player and **Timeline Pro** synced audio/video → change volume, mute, navigate between tabs | Mute/volume persist and affect Evidence Path audio, Timeline synced audio, and timeline video playback |
 | **R-112** | Frame-accurate audio | PARTIAL | **Timeline Pro** → play video + audio probe | Audio follows scrub; not sample-accurate everywhere |
 | **R-113** | Multichannel | IMPLEMENTED | **Timeline Pro** → **Probe** audio channels | Channel layout returned |
 | **R-114** | Audio redaction | IMPLEMENTED | **Forensic Tools** or **Timeline Pro** → **Audio Redaction** — add mute regions, export audio or video; API: `POST /api/capabilities/audio/redact` | Muted intervals in output file; workflow step + audit logged |
@@ -239,7 +239,7 @@ curl -s -X POST http://127.0.0.1:9450/api/markup/annotations \
 | **R-130** | HTML/PDF/DOC reports | IMPLEMENTED | **Case Reports** → set output dir, template, paper size, formats (HTML/PDF/DOCX), include settings & references → **Generate**; apply filters/exports first so workflow steps exist; `POST /api/reports/generate`; `GET /api/reports/preview` | HTML table with steps/settings/refs; PDF table; DOCX with same columns; paths listed in UI |
 | **R-131** | Paper sizes | IMPLEMENTED | Generate with `paper_size`: A4, Letter, Legal, A3 | PDF page size matches |
 | **R-132** | Report templates | IMPLEMENTED | Templates: standard, detailed, executive, minimal | Layout differs per template |
-| **R-133** | Secure copy in reports | PARTIAL | **Forensic Tools** → Secure Copy + Report | Copy report JSON; inclusion in PDF partial |
+| **R-133** | Secure copy in reports | IMPLEMENTED | **Forensic Tools** → Secure Copy + Report, then **Case Reports** → Generate HTML/PDF/DOCX | Secure copy destination and hash report JSON are listed in the report workflow and Secure Copy Verification section |
 | **R-134** | Clipboard export | IMPLEMENTED | **Forensic Tools** → Copy Frame / Copy Hashes | Clipboard receives data URL or hash text |
 
 ---
@@ -253,7 +253,7 @@ curl -s -X POST http://127.0.0.1:9450/api/markup/annotations \
 | **R-142** | Secure copy + report | IMPLEMENTED | **Secure Copy + Report** button | Destination file + JSON report |
 | **R-143** | Chain of custody | IMPLEMENTED | Ingest evidence → **Chain of Custody** tab | INGEST / ENHANCE entries |
 | **R-144** | Audit log | IMPLEMENTED | API: `GET /api/forensics/cases/{case_id}/audit` | FILTER_APPLY, ANNOTATION_ADD events |
-| **R-145** | Secure media batch | PLANNED | *Not testable* — no UI/API yet | N/A until Phase 8 |
+| **R-145** | Secure media batch | IMPLEMENTED | **Legal Export** → secure media folder/batch export | Manifest and verified batch export files are created |
 
 ---
 
@@ -268,7 +268,7 @@ curl -s -X POST http://127.0.0.1:9450/api/markup/annotations \
 | **R-154** | Auto contrast + halo | IMPLEMENTED | Filter `adv_auto_contrast` | Contrast up; minimal halos |
 | **R-155** | Color separation | IMPLEMENTED | Filter `adv_color_separate` params `channel: r` | Single channel visible |
 | **R-156** | Motion deblur | IMPLEMENTED | Filter `adv_motion_deblur` or `both_deblur_ai` | Sharper edges |
-| **R-157** | Multi-image align | PLANNED | *Not testable* | N/A until multi-image UI |
+| **R-157** | Multi-image align | IMPLEMENTED | **Geometry Correction** → Multi-image perspective alignment, set reference + target image paths, then align | Aligned JPEG(s) and `alignment_manifest.json` are written with homography and RMS error |
 | **R-158** | Perspective stabilize | PARTIAL | Filter `adv_perspective`; API `advanced/perspective-stabilize` | Tilt reduced |
 | **R-159** | Super-resolution | IMPLEMENTED | Filter `adv_super_resolution` scale 2 | Larger/sharper preview |
 | **R-160** | Video stabilize | IMPLEMENTED | **Forensic Tools** → Stabilize | `stabilized.mp4` plays smoother |
@@ -383,7 +383,7 @@ echo "Smoke complete"
 |-----------|--------|
 | **Release candidate** | All **IMPLEMENTED** rows tested once |
 | **Partial acceptance** | Each **PARTIAL** row: test what exists + document gap |
-| **Planned** | R-145, R-157 excluded from sign-off until delivered |
+| **Planned** | No tracked planned rows remain; test all implemented rows before sign-off |
 | **Evidence bundle** | Screenshots + API JSON + output files per section |
 
 ---

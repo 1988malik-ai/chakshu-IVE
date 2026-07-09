@@ -133,8 +133,60 @@ class ProjectStore:
     def import_compatible(self, path: Path) -> AiveProject:
         """Import from AI-IVE YAML/JSON or simplified compatible JSON."""
         if path.suffix.lower() == ".json":
-            return AiveProject.from_yaml(json.dumps({"aive_project": json.loads(path.read_text())}))
+            self._current = _import_json_compatible(path.read_text(encoding="utf-8"))
+            return self._current
         return self.load(path)
+
+
+def inspect_compatible_project(path: Path) -> dict[str, Any]:
+    """Return a strict, user-facing compatibility summary before import."""
+    path = path.expanduser()
+    ext = path.suffix.lower()
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "file_name": path.name,
+        "extension": ext,
+        "supported": ext in COMPATIBLE_EXTENSIONS,
+        "format": "unknown",
+        "warnings": [],
+        "counts": {"media": 0, "filters": 0, "steps": 0, "bookmarks": 0, "notes": 0},
+    }
+    if ext not in COMPATIBLE_EXTENSIONS:
+        summary["warnings"].append("Unsupported extension. Use .aive.yaml, .aive.yml, or compatible .json.")
+        return summary
+
+    try:
+        text = path.read_text(encoding="utf-8")
+        if ext == ".json":
+            raw = json.loads(text)
+            root = raw.get("aive_project", raw)
+            summary["format"] = "aive_json" if "aive_project" in raw else "compatible_json"
+        else:
+            raw = yaml.safe_load(text) or {}
+            root = raw.get("aive_project", raw)
+            summary["format"] = "aive_yaml" if "aive_project" in raw else "yaml"
+        if not isinstance(root, dict):
+            summary["supported"] = False
+            summary["warnings"].append("Project root is not an object.")
+            return summary
+
+        summary["project_id"] = root.get("project_id", "")
+        summary["name"] = root.get("name") or root.get("project_name") or "Imported"
+        summary["counts"] = {
+            "media": len(root.get("media", root.get("assets", [])) or []),
+            "filters": len(root.get("filter_pipeline", root.get("filters", [])) or []),
+            "steps": len(root.get("workflow_steps", root.get("steps", root.get("workflow", []))) or []),
+            "bookmarks": len(root.get("bookmarks", []) or []),
+            "notes": len(root.get("examination_notes", root.get("notes", [])) or []),
+        }
+        if summary["counts"]["media"] == 0:
+            summary["warnings"].append("No media entries found; evidence may need to be reloaded after import.")
+        if summary["format"] in {"compatible_json", "yaml"}:
+            summary["warnings"].append("Compatible import will normalize fields into Chakshu project format.")
+    except Exception as exc:
+        summary["supported"] = False
+        summary["warnings"].append(f"Could not inspect project: {exc}")
+    return summary
 
 
 def _import_json_compatible(text: str) -> AiveProject:

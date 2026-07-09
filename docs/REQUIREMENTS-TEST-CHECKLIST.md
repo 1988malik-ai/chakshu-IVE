@@ -38,7 +38,7 @@
 | R-011 | ☐ | DirectShow (PARTIAL) | Windows only / FFmpeg fallback |
 | R-012 | ☐ | VfW (PARTIAL) | Windows adapter / fallback |
 | R-013 | ☐ | QuickTime (PARTIAL) | Load .mov if available |
-| R-014 | ☐ | Formats + codecs (PARTIAL) | Legal Export presets |
+| R-014 | ☐ | Formats + codecs | Settings media compatibility + Legal Export |
 
 ## Section 3 — Bookmarks & Projects
 
@@ -46,7 +46,7 @@
 |----|---|-------------|-------------------|
 | R-020 | ☐ | Bookmarks | `POST /api/bookmarks` |
 | R-021 | ☐ | Project YAML | `GET /api/project/current` |
-| R-022 | ☐ | Import projects (PARTIAL) | `POST /api/project/import` |
+| R-022 | ☐ | Import projects | Settings import inspect/import |
 
 ## Section 4 — Export
 
@@ -67,7 +67,7 @@
 | ID | ☐ | Requirement | UI / API shortcut |
 |----|---|-------------|-------------------|
 | R-040 | ☐ | JPEG/PNG/TIFF/BMP | Ingest each format |
-| R-041 | ☐ | RAW (PARTIAL) | .dng with rawpy |
+| R-041 | ☐ | RAW / specialized formats | Settings compatibility + .dng with rawpy |
 | R-042 | ☐ | Nested folders | scan_folder |
 
 ## Section 6 — Editing
@@ -125,7 +125,7 @@
 | ID | ☐ | Requirement | UI / API shortcut |
 |----|---|-------------|-------------------|
 | R-110 | ☐ | Audio extraction | Legal Export audio |
-| R-111 | ☐ | Volume/mute (PARTIAL) | AudioPlayer |
+| R-111 | ☐ | Volume/mute | Shared Evidence Path + Timeline audio |
 | R-112 | ☐ | Frame audio (PARTIAL) | Timeline + video |
 | R-113 | ☐ | Multichannel | Probe audio channels |
 | R-114 | ☐ | Audio redaction | audio/redact API |
@@ -151,7 +151,7 @@
 | R-130 | ☐ | HTML/PDF/DOC reports | Case Reports |
 | R-131 | ☐ | Paper sizes | A4/Letter/Legal/A3 |
 | R-132 | ☐ | Templates | standard/detailed/… |
-| R-133 | ☐ | Secure copy in reports (PARTIAL) | Secure Copy |
+| R-133 | ☐ | Secure copy in reports | Secure Copy + Case Reports |
 | R-134 | ☐ | Clipboard export | Copy Frame / Hashes |
 
 ## Section 15 — Forensic Integrity
@@ -163,7 +163,7 @@
 | R-142 | ☐ | Secure copy + report | Secure Copy button |
 | R-143 | ☐ | Chain of custody | Custody tab |
 | R-144 | ☐ | Audit log | cases/{id}/audit |
-| R-145 | ⊘ | Secure media batch | **PLANNED — N/A** |
+| R-145 | ☐ | Secure media batch | Legal Export secure media batch |
 
 ## Section 16 — Advanced Processing
 
@@ -176,7 +176,7 @@
 | R-154 | ☐ | Auto contrast + halo | adv_auto_contrast |
 | R-155 | ☐ | Color separation | adv_color_separate |
 | R-156 | ☐ | Motion deblur | adv_motion_deblur |
-| R-157 | ⊘ | Multi-image align | **PLANNED — N/A** |
+| R-157 | ☐ | Multi-image align | Geometry Correction multi-image alignment |
 | R-158 | ☐ | Perspective stabilize (PARTIAL) | adv_perspective |
 | R-159 | ☐ | Super-resolution | adv_super_resolution |
 | R-160 | ☐ | Video stabilize | Forensic Tools Stabilize |
@@ -229,7 +229,7 @@
 | Total requirements | 104 |
 | Tested (☑) | _____ |
 | Failed | _____ |
-| N/A (PLANNED) | 2 (R-145, R-157) |
+| N/A (PLANNED) | 0 |
 | Partial accepted with notes | _____ |
 
 **Notes / blockers:**

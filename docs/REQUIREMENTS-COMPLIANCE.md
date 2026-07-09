@@ -8,6 +8,7 @@
 **Classification:** Internal / Procurement Support  
 
 **Test guide:** See [`docs/COMPLIANCE-AND-TEST-STEPS.md`](COMPLIANCE-AND-TEST-STEPS.md) for requirement-level acceptance steps and [`docs/REQUIREMENTS-TEST-GUIDE.md`](REQUIREMENTS-TEST-GUIDE.md) for workflow detail.  
+**Focused QA:** [`docs/LOW-HANGING-COMPLIANCE-TEST-STEPS.md`](LOW-HANGING-COMPLIANCE-TEST-STEPS.md) covers detailed tests for R-014, R-022, R-041, R-111, and R-133.
 **Workflow testing:** [`docs/WORKFLOW-TEST-GUIDE.md`](WORKFLOW-TEST-GUIDE.md) — end-to-end examiner scenarios (WF-01 … WF-12).  
 **Printable checklist:** [`docs/REQUIREMENTS-TEST-CHECKLIST.md`](REQUIREMENTS-TEST-CHECKLIST.md) · **Smoke script:** `scripts/run-requirements-smoke.sh`
 
@@ -48,7 +49,7 @@
 | R-011 | DirectShow (Windows) | MUST | **PARTIAL** | `DirectShowDecoder` adapter + FFmpeg fallback |
 | R-012 | Video for Windows (VfW) | MUST | **PARTIAL** | `VideoForWindowsDecoder` adapter |
 | R-013 | QuickTime (optional) | MUST | **PARTIAL** | `QuickTimeDecoder` adapter |
-| R-014 | Standard formats + system codec extension | MUST | **PARTIAL** | `export/exporter.py` presets; FFmpeg-dependent |
+| R-014 | Standard formats + system codec extension | MUST | **IMPLEMENTED** | `export/exporter.py`, `/api/capabilities/media/formats`, Settings media compatibility diagnostics |
 
 ---
 
@@ -58,7 +59,7 @@
 |----|-------------|-----|--------|-------------------|
 | R-020 | Bookmark frames/filters with custom metadata | MUST | **IMPLEMENTED** | `src/aive/bookmarks/store.py`, API `/api/bookmarks` |
 | R-021 | Human-readable project format | MUST | **IMPLEMENTED** | `src/aive/project/workflow.py` — `.aive.yaml` |
-| R-022 | Import projects from compatible tools | SHOULD | **PARTIAL** | JSON/YAML import in `workflow.py` |
+| R-022 | Import projects from compatible tools | SHOULD | **IMPLEMENTED** | `workflow.inspect_compatible_project()`, `/api/project/import/inspect`, Settings import workflow |
 
 ---
 
@@ -83,7 +84,7 @@
 | ID | Requirement | Pri | Status | Evidence / Module |
 |----|-------------|-----|--------|-------------------|
 | R-040 | JPEG, PNG, TIFF, BMP | MUST | **IMPLEMENTED** | `media/loader.py` |
-| R-041 | RAW / specialized formats | MUST | **PARTIAL** | RAW via optional `rawpy`; loader hooks |
+| R-041 | RAW / specialized formats | MUST | **IMPLEMENTED** | RAW/HEIC loader hooks, actionable dependency diagnostics, `/api/capabilities/media/formats` |
 | R-042 | Nested folder organization | MUST | **IMPLEMENTED** | `MediaLibrary.scan_folder()` |
 
 ---
@@ -157,7 +158,7 @@
 | ID | Requirement | Pri | Status | Evidence / Module |
 |----|-------------|-----|--------|-------------------|
 | R-110 | Audio stream extraction | MUST | **IMPLEMENTED** | `export/audio.py` |
-| R-111 | Playback volume / mute | MUST | **PARTIAL** | `frontend/components/AudioPlayer.jsx` |
+| R-111 | Playback volume / mute | MUST | **IMPLEMENTED** | Controlled `AudioPlayer.jsx`; shared mute/volume across Evidence Path, Timeline synced audio, and video element |
 | R-112 | Frame-by-frame audio playback | MUST | **PARTIAL** | Timeline synced `<video>` + `audio/player.py` sync map |
 | R-113 | Multichannel audio | MUST | **IMPLEMENTED** | `audio/player.py`, `/api/timeline/audio/channels` |
 | R-114 | Audio redaction | MUST | **IMPLEMENTED** | `audio/redaction.py`, `/api/capabilities/audio/redact` |
@@ -187,7 +188,7 @@
 | R-130 | Automated reports HTML/PDF/DOC | MUST | **IMPLEMENTED** | `reports/generator.py` |
 | R-131 | Various paper sizes | MUST | **IMPLEMENTED** | A4, Letter, Legal, A3 |
 | R-132 | Customizable templates | MUST | **IMPLEMENTED** | standard, detailed, executive, minimal |
-| R-133 | Secure copy in reports | MUST | **PARTIAL** | `forensics/secure_copy.py`, `/api/capabilities/copy/secure` |
+| R-133 | Secure copy in reports | MUST | **IMPLEMENTED** | `secure_copy.py`, workflow logging, dedicated Secure Copy Verification section in HTML/PDF/DOCX/RTF reports |
 | R-134 | Export to office / clipboard | MUST | **IMPLEMENTED** | `/api/capabilities/clipboard/frame`, Forensic Tools copy |
 
 ---
@@ -218,7 +219,7 @@
 | R-154 | Auto contrast/brightness + halo suppression | MUST | **IMPLEMENTED** | `adv_auto_contrast`, `both_auto_contrast` |
 | R-155 | Color separation / component isolation | MUST | **IMPLEMENTED** | `adv_color_separate`, `clr_channel_mixer` |
 | R-156 | Motion blur / defocus deblur | MUST | **IMPLEMENTED** | `adv_motion_deblur`, `both_deblur_ai` |
-| R-157 | Multi-image perspective alignment | MUST | **PLANNED** | Requires multi-image input pipeline |
+| R-157 | Multi-image perspective alignment | MUST | **IMPLEMENTED** | `src/aive/perspective_alignment.py`, `/api/capabilities/advanced/multi-image-align`, `MultiImageAlignmentPanel.jsx`, `tests/test_perspective_alignment.py` |
 | R-158 | Perspective stabilization | MUST | **PARTIAL** | Frame preview + `/api/capabilities/advanced/perspective-stabilize` |
 | R-159 | Super-resolution from video | MUST | **IMPLEMENTED** | `adv_super_resolution`, `rst_super_resolution` |
 | R-160 | Video stabilization (auto + tracking-based) | MUST | **IMPLEMENTED** | `/api/capabilities/advanced/stabilize` (vidstab/deshake) |
@@ -275,16 +276,16 @@
 | Metric | Count | Notes |
 |--------|-------|-------|
 | **Total requirements** | 104 | All tracked in this matrix |
-| **IMPLEMENTED** | 87 | 84% strict compliance |
-| **PARTIAL** | 16 | 15% |
-| **PLANNED** | 1 | 1% — multi-image align |
-| **Progress score** | ~91% | Partial items counted at 50% |
+| **IMPLEMENTED** | 93 | 89% strict compliance |
+| **PARTIAL** | 11 | 11% |
+| **PLANNED** | 0 | 0% |
+| **Progress score** | ~95% | Partial items counted at 50% |
 
 | Status | MUST items (approx.) | Notes |
 |--------|----------------------|-------|
-| IMPLEMENTED | 80 | Markup, clipboard, subtitles, sync, merge, advanced video |
-| PARTIAL | 22 | Multi-video, MPEG viz, subtitle customization polish |
-| PLANNED | 2 | Multi-image perspective (R-157), secure media batch (R-145) |
+| IMPLEMENTED | 93 | Markup, clipboard, subtitles, sync, merge, advanced video, import/media diagnostics, secure-copy reports |
+| PARTIAL | 11 | Multi-video, MPEG viz, tracking/VFR/platform export polish |
+| PLANNED | 0 | No tracked requirement remains planned |
 | NOT STARTED | 0* | All items have architectural placement |
 
 *All requirements are tracked; none are orphaned.

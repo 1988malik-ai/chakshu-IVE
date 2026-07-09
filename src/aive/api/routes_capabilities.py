@@ -24,6 +24,7 @@ from aive.project.workflow import project_store
 from aive.forensics.secure_copy import secure_copy
 from aive.integration.metadata import export_metadata_bundle, ffprobe_full, image_exif
 from aive.measurement.tools import Calibration, estimate_speed, measure_distance
+from aive.media.capabilities import media_format_capabilities
 from aive.overlays.compose import draw_grid, draw_pip, draw_timestamp
 from aive.redaction.privacy import redact_regions
 from aive.video.seek import extract_frame_at_index, extract_frame_at_time, extract_iframe_near, get_video_info
@@ -201,7 +202,26 @@ def copy_secure(body: SecureCopyBody) -> dict[str, Any]:
     result = secure_copy(src, dst, report)
     case = case_store.active_case()
     audit_log.record(case.case_id, "SECURE_COPY", "examiner", source=str(src), dest=str(dst))
+    if result.get("success"):
+        refs = [str(dst)]
+        if report:
+            refs.append(str(report))
+        project_store.current.add_step(
+            "secure_copy",
+            settings={
+                "source": str(src),
+                "destination": str(dst),
+                "report_path": str(report) if report else "",
+                "verified": bool(result.get("verified")),
+            },
+            references=refs,
+        )
     return result
+
+
+@router.get("/media/formats")
+def media_formats() -> dict[str, Any]:
+    return media_format_capabilities()
 
 
 @router.post("/video/info")
@@ -841,6 +861,63 @@ def advanced_panorama_session(body: PanoramaSessionBody) -> dict[str, Any]:
         "source_type": body.source_type,
         "output_type": body.output_type,
     }
+
+
+class AlignmentPointPairBody(BaseModel):
+    input_path: str
+    reference_points: list[list[float]] = Field(default_factory=list)
+    moving_points: list[list[float]] = Field(default_factory=list)
+
+
+class MultiImageAlignBody(BaseModel):
+    reference_path: str
+    input_paths: list[str]
+    output_dir: str
+    method: str = "auto"
+    correspondences: list[AlignmentPointPairBody] = Field(default_factory=list)
+    max_features: int = 2500
+    min_matches: int = 18
+    quality: int = 92
+
+
+@router.post("/advanced/multi-image-align")
+def advanced_multi_image_align(body: MultiImageAlignBody) -> dict[str, Any]:
+    """R-157 — align multiple images into a shared perspective plane."""
+    from aive.perspective_alignment import AlignmentCorrespondence, align_image_set
+
+    reference = _path(body.reference_path)
+    inputs = [_path(p) for p in body.input_paths]
+    corr = [
+        AlignmentCorrespondence(
+            input_path=c.input_path,
+            reference_points=[(float(p[0]), float(p[1])) for p in c.reference_points],
+            moving_points=[(float(p[0]), float(p[1])) for p in c.moving_points],
+        )
+        for c in body.correspondences
+    ]
+    result = align_image_set(
+        reference,
+        inputs,
+        Path(body.output_dir).expanduser(),
+        method=body.method,
+        correspondences=corr,
+        max_features=body.max_features,
+        min_matches=body.min_matches,
+        quality=body.quality,
+    )
+    if not result.get("success"):
+        raise HTTPException(400, "; ".join(result.get("errors", [])) or "Perspective alignment failed")
+    case = case_store.active_case()
+    audit_log.record(
+        case.case_id,
+        "MULTI_IMAGE_ALIGN",
+        "examiner",
+        reference=body.reference_path,
+        targets=body.input_paths,
+        output_dir=body.output_dir,
+        method=body.method,
+    )
+    return result
 
 
 @router.post("/advanced/perspective-stabilize")

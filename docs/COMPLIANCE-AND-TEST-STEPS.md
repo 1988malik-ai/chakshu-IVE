@@ -115,7 +115,7 @@ Use this table for release sign-off. Each row maps directly to `docs/REQUIREMENT
 | R-154 | Apply auto contrast/brightness/levels. | Tone changes with no crash and can reset. |
 | R-155 | Apply color channel separation/isolation. | Selected channel/component is isolated or adjusted. |
 | R-156 | Apply motion deblur/defocus deblur. | Restored/sharpened output is produced. |
-| R-157 | Attempt multi-image perspective alignment with planned test case. | Currently planned; acceptance requires multi-image input workflow. |
+| R-157 | Geometry Correction: set a reference image, add one or more target image paths, run Multi-image perspective alignment. | Aligned JPEG(s) and `alignment_manifest.json` are written; each output includes homography, inlier count, and RMS error. |
 | R-158 | Run perspective stabilization on video. | Stabilized output is produced or limitation is clearly reported. |
 | R-159 | Load video frame, apply Super Resolution. | Frame dimensions/detail increase and preview updates. |
 | R-160 | Run video stabilization/deshake or tracking stabilization. | Stabilized video export exists. |
@@ -151,7 +151,10 @@ Use this table for release sign-off. Each row maps directly to `docs/REQUIREMENT
 | At least 140 image/video filters | Implemented | `src/aive/filters/catalog.py` asserts `len(FILTER_CATALOG) >= 140`; architecture notes show 191 registered filters | Open Examination Lab and inspect filter list; or call `GET /api/filters` | Filter count is at least 140 and image/video/both filters are scoped correctly |
 | Standalone system with license protection | Implemented | `src/aive/license/protection.py`, `scripts/generate_license.py`, `docs/LICENSE-AND-ACTIVATION.md` | Run license generator help and license status flow | App has trial/license validation path and activation docs |
 | Major video codec decoding | Implemented | FFmpeg/OpenCV loaders in `src/aive/media/`, `src/aive/video/` | Ingest common MP4/MOV/AVI where supported by local FFmpeg/OpenCV | Video preview loads and timeline metadata appears |
+| Standard formats + system codec extension | Implemented | `/api/capabilities/media/formats`, Settings media compatibility panel | Settings -> Media compatibility; Legal Export -> export MP4/MKV presets | FFmpeg/source diagnostics appear and outputs play in VLC |
+| RAW / specialized image formats | Implemented | `media/loader.py`, `media/capabilities.py` | Settings -> Media compatibility; ingest `.dng`/`.cr2` with `rawpy` installed | RAW opens, or clear `pip install rawpy` guidance appears |
 | Bookmark frames and filters with metadata | Implemented | `frontend/src/components/BookmarksPanel.jsx`, API bookmark routes | Apply a filter, fill label/notes/tags, click Bookmark this frame/current filter | Bookmark appears with metadata and Go to/Edit/Delete works |
+| Compatible project import | Implemented | `workflow.inspect_compatible_project`, Settings project import panel | Settings -> Project import -> Inspect -> Import `.aive.yaml` or compatible JSON | Summary shows counts/warnings; project becomes active |
 | Original and processed media export | Implemented | `src/aive/export/media_bundle.py`, Legal Export UI | Legal Export -> Export examination bundle | Original and processed outputs are written to configured folders |
 | CFR and VFR video export | Implemented | `src/aive/export/exporter.py`, `tests/test_video_export_framerate.py` | Legal Export -> Frame rate mode: CFR, export; repeat with VFR | CFR command uses fixed FPS; VFR command preserves variable timing mode |
 | Stream copy / minimal transcoding | Implemented | `ExportOptions.use_stream_copy`, `VideoExporter.build_command` | Set video codec to Stream copy and export a compatible video | ffmpeg command uses `-c:v copy` when no filters require re-encode |
@@ -161,7 +164,7 @@ Use this table for release sign-off. Each row maps directly to `docs/REQUIREMENT
 | Variable frame rate playback via timestamps | Partial/Implemented for PTS seek | `src/aive/video/timeline.py`, VFR detection chips | Load VFR clip -> Timeline Pro | Timeline flags VFR and seeking uses timestamp/PTS metadata |
 | Subtitle rendering SRT/SMI | Implemented | `src/aive/subtitles/`, Subtitle panel | Upload SRT, preview subtitles, burn/export | Subtitle text renders at expected timestamps |
 | PDF frame export with layout settings | Implemented | `src/aive/export/pdf_frames.py`, Legal Export PDF panel | Set page size/orientation/rows/columns; export PDF | PDF generated with selected layout |
-| Audio extraction/playback/mute/volume | Implemented | Audio panels and `src/aive/audio/` | Load video -> use audio player, volume, mute, extract audio | Playback controls work and audio extract file is created |
+| Audio extraction/playback/mute/volume | Implemented | Controlled `AudioPlayer.jsx`, Timeline synced video/audio, `src/aive/audio/` | Load video -> mute/change volume in Evidence Path, switch to Timeline Pro, play video/audio | Shared mute/volume state persists across audio surfaces and audio extract file is created |
 | Audio redaction | Implemented | `src/aive/audio/redaction.py`, Audio Redaction panel | Add mute region and export redacted audio/video | Output has selected region muted |
 | Add/mux audio stream | Implemented | `src/aive/audio/mux.py` | Forensic Tools -> audio mux panel | Output video includes selected/new audio stream |
 | A/V sync adjustment | Implemented | Audio sync tools | Use A/V offset control on loaded media | Offset is applied/export command succeeds |
@@ -180,7 +183,7 @@ Use this table for release sign-off. Each row maps directly to `docs/REQUIREMENT
 | Annotation tools with snapping/guides | Implemented | `ExamCanvas.jsx`, Markup Studio | Draw arrow/text/rectangle/measurement with snap enabled | Annotation appears at cursor, can apply to frame |
 | Measurement tools with error estimates | Implemented | `src/aive/measurement/tools.py`, `tests/test_measurement_tools.py` | Markup Studio -> Measure -> set unit/calibration/error fields -> draw line | Distance shown with `±` uncertainty and selected unit |
 | Object speed with uncertainty | Implemented | `estimate_speed` in measurement tools | Use measurement with delta time/speed fields where available | Speed includes uncertainty propagation |
-| Secure copy with hash report | Implemented | secure copy capability | Forensic Tools -> Secure Copy + Report | Copied file and JSON/hash report created |
+| Secure copy with hash report and reports inclusion | Implemented | secure copy capability + `reports/generator.py` Secure Copy Verification | Forensic Tools -> Secure Copy + Report -> Case Reports -> Generate HTML/PDF/DOCX | Copied file and JSON/hash report are created and listed in generated reports |
 | Secure media direct loading and batch export | Implemented | `secure_media_batch.py`, Legal Export secure media panel | Legal Export -> Secure media folder -> Scan -> Load into case -> Batch export | Folder scan, referenced load, and verified batch export complete |
 | Timestamp editing and region analysis | Implemented | `TimestampEditorPanel.jsx`, `RegionAnalysisPanel.jsx` | Timeline/Tools -> edit timestamp overlay; run region I/P/B analysis | Timestamp overlay applies; region table shows frame distribution |
 | JPEG artifact reduction / denoise / sharpen | Implemented | filter catalog restore/noise/sharpen categories | Apply JPEG Artifact Reduction, Denoise, Sharpen | Output changes and filter is recorded |

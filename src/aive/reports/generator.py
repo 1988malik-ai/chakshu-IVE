@@ -60,7 +60,10 @@ def generate_report(
     outputs: list[dict[str, Any]] = []
     errors: list[str] = []
 
-    formats = {f.lower().replace("doc", "docx") for f in settings.output_formats}
+    formats = set()
+    for fmt in settings.output_formats:
+        normalized = fmt.lower().strip()
+        formats.add("docx" if normalized == "doc" else normalized)
 
     if "html" in formats:
         path = output_dir / f"{stem}.html"
@@ -118,8 +121,48 @@ def _meta_block(ctx: ReportContext, settings: ReportSettings, tr: Translator) ->
     return rows
 
 
+def _secure_copy_rows(ctx: ReportContext) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for step in ctx.project.workflow_steps:
+        if step.action != "secure_copy":
+            continue
+        s = step.settings or {}
+        rows.append(
+            {
+                "timestamp": step.timestamp,
+                "source": str(s.get("source", "")),
+                "destination": str(s.get("destination", "")),
+                "report_path": str(s.get("report_path", "")),
+                "verified": "Yes" if s.get("verified") else "No",
+            }
+        )
+    return rows
+
+
+def _secure_copy_html(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return ""
+    body = ""
+    for row in rows:
+        body += f"""
+        <tr>
+          <td>{html.escape(row['timestamp'])}</td>
+          <td>{html.escape(row['source'])}</td>
+          <td>{html.escape(row['destination'])}</td>
+          <td>{html.escape(row['report_path'])}</td>
+          <td>{html.escape(row['verified'])}</td>
+        </tr>"""
+    return f"""
+<h2>Secure Copy Verification</h2>
+<table>
+  <tr><th>Time</th><th>Source</th><th>Destination</th><th>Hash Report</th><th>Verified</th></tr>
+  {body}
+</table>"""
+
+
 def _render_html(ctx: ReportContext, settings: ReportSettings, tpl: dict, tr: Translator) -> str:
     meta_html = "".join(f"<p><strong>{html.escape(k)}:</strong> {html.escape(v)}</p>" for k, v in _meta_block(ctx, settings, tr))
+    secure_rows = _secure_copy_rows(ctx)
 
     steps_html = ""
     if settings.include_steps:
@@ -179,6 +222,7 @@ def _render_html(ctx: ReportContext, settings: ReportSettings, tpl: dict, tr: Tr
   {steps_html or f'<tr><td colspan="5">{tr.tr("report.no_steps")}</td></tr>'}
 </table>
 {pipeline_block}
+{_secure_copy_html(secure_rows)}
 {f'<h2>{tr.tr("report.examination_notes")}</h2><ul>{notes_html}</ul>' if notes_html else ''}
 {f'<h2>{tr.tr("report.bookmarks")}</h2><ul>{bookmarks_html}</ul>' if bookmarks_html else ''}
 <div class="footer">{tr.tr('report.footer')}</div>
@@ -270,6 +314,33 @@ def _render_pdf(
         for line in ctx.pipeline_summary().split("\n")[:30]:
             story.append(Paragraph(html.escape(line), body))
 
+    secure_rows = _secure_copy_rows(ctx)
+    if secure_rows:
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("Secure Copy Verification", styles["Heading2"]))
+        data = [["Time", "Source", "Destination", "Hash Report", "Verified"]]
+        for row in secure_rows:
+            data.append([
+                row["timestamp"][:19],
+                Paragraph(html.escape(row["source"]), small),
+                Paragraph(html.escape(row["destination"]), small),
+                Paragraph(html.escape(row["report_path"]), small),
+                row["verified"],
+            ])
+        table = Table(data, colWidths=[doc.width * 0.16, doc.width * 0.25, doc.width * 0.25, doc.width * 0.24, doc.width * 0.1], repeatRows=1)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(tpl["accent"])),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(table)
+
     doc.build(story)
     return {"success": True}
 
@@ -323,6 +394,20 @@ def _render_docx(
         doc.add_heading(tr.tr("report.filter_pipeline"), level=1)
         doc.add_paragraph(ctx.pipeline_summary())
 
+    secure_rows = _secure_copy_rows(ctx)
+    if secure_rows:
+        doc.add_heading("Secure Copy Verification", level=1)
+        table = doc.add_table(rows=1, cols=5)
+        for i, h in enumerate(["Time", "Source", "Destination", "Hash Report", "Verified"]):
+            table.rows[0].cells[i].text = h
+        for row in secure_rows:
+            cells = table.add_row().cells
+            cells[0].text = row["timestamp"]
+            cells[1].text = row["source"]
+            cells[2].text = row["destination"]
+            cells[3].text = row["report_path"]
+            cells[4].text = row["verified"]
+
     if settings.include_notes and ctx.project.examination_notes:
         doc.add_heading(tr.tr("report.examination_notes"), level=1)
         for n in ctx.project.examination_notes:
@@ -349,5 +434,12 @@ def _render_rtf(ctx: ReportContext, settings: ReportSettings) -> str:
         lines.append(
             rf"{row['index']}. [{row['timestamp']}] {row['action']} | {row['settings'][:120]} | {row['references']}\par"
         )
+    secure_rows = _secure_copy_rows(ctx)
+    if secure_rows:
+        lines.append(r"\par\b Secure Copy Verification\b0\par")
+        for row in secure_rows:
+            lines.append(
+                rf"{row['timestamp']} | {row['source']} -> {row['destination']} | report: {row['report_path']} | verified: {row['verified']}\par"
+            )
     lines.append("}")
     return "\n".join(lines)
