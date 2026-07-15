@@ -168,6 +168,7 @@ export default function ForensicApp() {
   const fileRef = useRef(null);
   const videoRef = useRef(null);
   const seekTimeRef = useRef(0);
+  const ingestRequestRef = useRef(0);
 
   const [exportForm, setExportForm] = useState(loadExportFormFromStorage);
 
@@ -481,6 +482,8 @@ export default function ForensicApp() {
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ingestRequest = ++ingestRequestRef.current;
+    const localPreview = URL.createObjectURL(file);
     setError('');
     setPage('examine');
     setBlocking(true, {
@@ -489,15 +492,16 @@ export default function ForensicApp() {
       wait: 'Creating preview, storing evidence, and linking it to the active case.',
     });
     setPreviewOriginal(null);
-    setPreview(URL.createObjectURL(file));
+    setFilterChain([]);
+    setPreview(localPreview);
     try {
-      let sid = sessionId;
-      if (!sid) {
-        const s = await api.createSession();
-        sid = s.session_id;
-        setSessionId(sid);
-      }
+      // A newly ingested item starts a clean examination pipeline. Reusing the
+      // previous session can let its original/enhanced frames leak into compare.
+      const s = await api.createSession();
+      const sid = s.session_id;
       const data = await api.uploadMedia(sid, file);
+      if (ingestRequest !== ingestRequestRef.current) return;
+      setSessionId(sid);
       handlePreview(data);
       const saved = data.storage_path || data.source_path || '';
       setStoragePath(saved);
@@ -536,9 +540,10 @@ export default function ForensicApp() {
       reportSuccess(`${kind} ingested: ${file.name}`);
       setPage('examine');
     } catch (err) {
-      reportError(err, 'Upload failed');
+      if (ingestRequest === ingestRequestRef.current) reportError(err, 'Upload failed');
     } finally {
-      setBlocking(false);
+      URL.revokeObjectURL(localPreview);
+      if (ingestRequest === ingestRequestRef.current) setBlocking(false);
     }
     e.target.value = '';
   };
