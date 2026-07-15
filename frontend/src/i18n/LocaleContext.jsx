@@ -14,6 +14,16 @@ const DEFAULT_A11Y = {
 
 const LocaleContext = createContext(null);
 
+const THEME_PROPERTIES = [
+  '--fx-bg',
+  '--fx-text',
+  '--fx-accent',
+  '--fx-panel',
+  '--fx-border',
+  '--fx-warn',
+  '--fx-accent-2',
+];
+
 function loadA11y() {
   try {
     const raw = localStorage.getItem(STORAGE_A11Y);
@@ -31,7 +41,12 @@ function applyA11yDom(a11y, theme) {
   root.dataset.reduceMotion = a11y.reduceMotion ? '1' : '0';
   root.dataset.focusVisible = a11y.focusVisible ? '1' : '0';
   root.style.setProperty('--fx-font-scale', String((a11y.fontScale || 100) / 100));
-  if (theme) {
+
+  // Standard mode is owned by the product design tokens in forensic.css.
+  // The API theme is intentionally applied only for an accessibility palette;
+  // otherwise its legacy purple desktop palette creates a mixed UI theme.
+  const usesAccessibilityPalette = a11y.highContrast || (a11y.colorBlind && a11y.colorBlind !== 'none');
+  if (theme && usesAccessibilityPalette) {
     root.style.setProperty('--fx-bg', theme.background);
     root.style.setProperty('--fx-text', theme.foreground);
     root.style.setProperty('--fx-accent', theme.accent);
@@ -39,6 +54,8 @@ function applyA11yDom(a11y, theme) {
     root.style.setProperty('--fx-border', theme.border);
     if (theme.warning) root.style.setProperty('--fx-warn', theme.warning);
     if (theme.success) root.style.setProperty('--fx-accent-2', theme.success);
+  } else {
+    THEME_PROPERTIES.forEach((property) => root.style.removeProperty(property));
   }
 }
 

@@ -1,13 +1,13 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces — cool charcoal slate */
-  --fx-bg: #06100f;
-  --fx-bg-subtle: #071313;
-  --fx-panel: #101b20;
-  --fx-panel-2: #142129;
-  --fx-panel-hover: #1a2d35;
-  --fx-sidebar: #050b0d;
+  /* Surfaces — neutral product slate with a restrained teal cast */
+  --fx-bg: #070b10;
+  --fx-bg-subtle: #0a1016;
+  --fx-panel: #111a23;
+  --fx-panel-2: #17232e;
+  --fx-panel-hover: #1d2d39;
+  --fx-sidebar: #060a0f;
   --fx-canvas: #020304;
   --fx-surface-glass: rgba(18, 22, 31, 0.96);
   --fx-surface-glass-strong: rgba(12, 16, 24, 0.98);
@@ -20,7 +20,7 @@
   --fx-app-bg:
     radial-gradient(ellipse 110% 70% at 50% -15%, rgba(125, 211, 252, 0.12), transparent 52%),
     radial-gradient(ellipse 55% 45% at 100% 85%, rgba(52, 211, 153, 0.06), transparent 48%),
-    radial-gradient(ellipse 45% 35% at 0% 55%, rgba(99, 102, 241, 0.05), transparent 42%),
+    radial-gradient(ellipse 45% 35% at 0% 55%, rgba(45, 212, 191, 0.035), transparent 42%),
     linear-gradient(180deg, #070a10 0%, #05070b 100%);
 
   /* Borders */
@@ -31,17 +31,17 @@
 
   /* Typography */
   --fx-text: #eef2f7;
-  --fx-text-secondary: #b8c3d4;
-  --fx-muted: #728395;
+  --fx-text-secondary: #bdc9d8;
+  --fx-muted: #8795a8;
   --fx-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', ui-monospace, monospace;
   --fx-sans: 'Inter', 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 
-  /* Brand accent — steel cyan (forensic / imaging) */
-  --fx-accent: #14f0c8;
-  --fx-accent-hover: #0fc9b3;
-  --fx-accent-muted: rgba(20, 240, 200, 0.12);
-  --fx-accent-glow: rgba(20, 240, 200, 0.24);
-  --fx-accent-2: #22d3ee;
+  /* Brand accent — product teal; semantic colors are kept separate */
+  --fx-accent: #2dd4bf;
+  --fx-accent-hover: #14b8a6;
+  --fx-accent-muted: rgba(45, 212, 191, 0.12);
+  --fx-accent-glow: rgba(45, 212, 191, 0.2);
+  --fx-accent-2: #67e8f9;
 
   /* Semantic */
   --fx-warn: #e8b84a;
